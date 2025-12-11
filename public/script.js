@@ -273,15 +273,6 @@ const checkFormValidity = () => {
   const allFieldsFilled = fullName && email && confirmEmail && phone && documentValue && company && cep;
   
   if (!allFieldsFilled) {
-    console.log('❌ Campos não preenchidos:', {
-      fullName: !!fullName,
-      email: !!email,
-      confirmEmail: !!confirmEmail,
-      phone: !!phone,
-      document: !!documentValue,
-      company: !!company,
-      cep: !!cep
-    });
     return false;
   }
   
@@ -302,26 +293,8 @@ const checkFormValidity = () => {
   const isCepValid = validateCEP(cep);
   const isCompanyValid = company.length >= 3;
   
-  // Debug: mostrar status de cada validação
-  console.log('🔍 Status das validações:', {
-    fullName: isFullNameValid,
-    email: isEmailValid,
-    confirmEmail: isConfirmEmailValid,
-    phone: isPhoneValid,
-    document: isDocumentValid,
-    cep: isCepValid,
-    company: isCompanyValid,
-    userLoggedIn: isUserLoggedIn
-  });
-  
   const allValid = isFullNameValid && isEmailValid && isConfirmEmailValid && 
          isPhoneValid && isDocumentValid && isCepValid && isCompanyValid;
-  
-  if (allValid) {
-    console.log('✅ Todos os campos válidos!');
-  } else {
-    console.log('❌ Alguns campos inválidos');
-  }
   
   return allValid;
 };
@@ -389,8 +362,6 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
   const timeZone = document.getElementById('tz').value;
 
   const formStatus = document.getElementById('formStatus');
-  const qrSection = document.getElementById('qrSection');
-  const qrImg = document.getElementById('qrImg');
   const toast = document.getElementById('toast');
   const submitBtn = document.getElementById('submitBtn');
   const btnSpinner = document.getElementById('btnSpinner');
@@ -406,14 +377,6 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
   formStatus.textContent = 'Enviando...';
   formStatus.className = 'status';
   formStatus.style.display = 'block';
-  
-  if (window._qrRefreshTimer) {
-    clearInterval(window._qrRefreshTimer);
-    window._qrRefreshTimer = null;
-    window._currentQrUrl = null;
-  }
-  qrSection.style.display = 'none';
-  qrSection.classList.remove('ready');
   
   submitBtn.disabled = true;
   submitBtn.classList.add('btn-loading');
@@ -432,73 +395,25 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
     if (data.error || data.message === 'Error in workflow' || res.status >= 400) {
       formStatus.textContent = data.error || data.message || 'Falha ao criar o calendário.';
       formStatus.className = 'status err';
+      showToast(data.error || data.message || 'Erro ao criar calendário', 'err');
     } else {
-      formStatus.textContent = 'Calendário criado com sucesso';
+      formStatus.textContent = 'Calendário criado com sucesso! Redirecionando...';
       formStatus.className = 'status ok';
-      showToast('Calendário criado com sucesso', 'ok');
-    }
+      showToast('Calendário criado com sucesso!', 'ok');
 
-    const qrUrl = data.qrCodeUrl || (data.n8n && (data.n8n.qrCodeUrl || (data.n8n.data && data.n8n.data.qrCodeUrl)));
-    if (qrUrl) {
-      qrImg.src = qrUrl;
-      qrSection.style.display = 'flex';
-      qrSection.classList.add('ready');
-      showToast('QR Code pronto para leitura', 'ok');
-      console.log('QR exibido:', qrUrl);
-
-      if (window._qrRefreshTimer) { clearInterval(window._qrRefreshTimer); window._qrRefreshTimer = null; }
-      if (window._qrCheckTimer) { clearInterval(window._qrCheckTimer); window._qrCheckTimer = null; }
-      if (window._qrCountdownTimer) { clearInterval(window._qrCountdownTimer); window._qrCountdownTimer = null; }
-
-      window._currentQrUrl = qrUrl;
-      let qrTimeLeft = 60;
-      const qrTimerDiv = document.getElementById('qrTimer');
-      qrTimerDiv.textContent = `QR será renovado em ${qrTimeLeft} segundos`;
-      window._qrCountdownTimer = setInterval(() => {
-        qrTimeLeft--;
-        if (qrTimeLeft <= 0) qrTimeLeft = 0;
-        qrTimerDiv.textContent = `QR será renovado em ${qrTimeLeft} segundos`;
-      }, 1000);
-
-      window._qrRefreshTimer = setInterval(() => {
-        try {
-          qrTimeLeft = 60;
-          qrTimerDiv.textContent = `QR será renovado em ${qrTimeLeft} segundos`;
-          if (window._currentQrUrl.startsWith('data:')) {
-            qrImg.src = window._currentQrUrl;
-          } else {
-            let url = window._currentQrUrl.replace(/[&?]t=\d{13,}/, '');
-            url = url.replace(/[?&]$/, '');
-            qrImg.src = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
-          }
-        } catch (e) {}
-      }, 60 * 1000);
-
-      // Verificar status de conexão a cada 4 segundos
-      window._qrCheckTimer = setInterval(async () => {
-        try {
-          const resp = await fetch('/check-connection', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ companyName })
+      // Se houver QR Code, redireciona para página dedicada
+      const qrUrl = data.qrCodeUrl || (data.n8n && (data.n8n.qrCodeUrl || (data.n8n.data && data.n8n.data.qrCodeUrl)));
+      
+      if (qrUrl) {
+        // Redireciona para página do QR Code após 1 segundo
+        setTimeout(() => {
+          const params = new URLSearchParams({
+            qr: qrUrl,
+            company: companyName
           });
-          const result = await resp.json();
-          if (result.connected) {
-            clearInterval(window._qrRefreshTimer);
-            clearInterval(window._qrCheckTimer);
-            clearInterval(window._qrCountdownTimer);
-            qrSection.style.display = 'none';
-            showToast('WhatsApp conectado com sucesso! ✅', 'ok');
-            formStatus.textContent = 'WhatsApp conectado com sucesso! ✅';
-            formStatus.className = 'status ok';
-          }
-        } catch (e) {
-          // Silenciosamente ignora erros de conexão
-          console.log('Verificando conexão...');
-        }
-      }, 4000);
-    } else {
-      qrSection.style.display = 'none';
+          window.location.href = `/qrcode.html?${params.toString()}`;
+        }, 1000);
+      }
     }
 
     console.log('Resposta /calendars:', data);
@@ -515,7 +430,3 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
 });
 
 fetchMe();
-
-window.addEventListener('beforeunload', () => {
-  if (window._qrRefreshTimer) clearInterval(window._qrRefreshTimer);
-});

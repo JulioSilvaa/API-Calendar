@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Conectar WhatsApp - Agenda de Clientes</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .qr-page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .qr-container {
+      max-width: 500px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .qr-container h1 {
+      font-size: 28px;
+      margin-bottom: 16px;
+      color: var(--text);
+    }
+
+    .qr-container .subtitle {
+      color: var(--text-light);
+      font-size: 16px;
+      margin-bottom: 32px;
+    }
+
+    .qr-image-wrapper {
+      background: white;
+      padding: 24px;
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+      display: inline-block;
+    }
+
+    .qr-image-wrapper img {
+      width: 300px;
+      height: 300px;
+      display: block;
+    }
+
+    .qr-timer {
+      font-size: 14px;
+      color: var(--text-light);
+      margin-bottom: 24px;
+    }
+
+    .qr-instructions {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: left;
+      box-shadow: var(--shadow);
+      margin-top: 32px;
+    }
+
+    .qr-instructions h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      color: var(--text);
+    }
+
+    .qr-instructions ol {
+      color: var(--text-light);
+      font-size: 15px;
+      line-height: 1.8;
+      padding-left: 20px;
+    }
+
+    .qr-instructions ol li {
+      margin-bottom: 12px;
+    }
+
+    .success-message {
+      background: var(--success-bg);
+      color: var(--success);
+      padding: 16px 24px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 500;
+      display: none;
+      margin-bottom: 24px;
+    }
+
+    .success-message.show {
+      display: block;
+    }
+
+    .back-button {
+      margin-top: 24px;
+    }
+
+    @media (max-width: 600px) {
+      .qr-image-wrapper img {
+        width: 250px;
+        height: 250px;
+      }
+
+      .qr-container h1 {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  
+  <div class="qr-page">
+    <div class="qr-container">
+      <div id="successMessage" class="success-message">
+        ✅ WhatsApp conectado com sucesso!
+      </div>
+
+      <h1>Conectar WhatsApp</h1>
+      <p class="subtitle">Escaneie o QR Code abaixo com seu celular</p>
+
+      <div class="qr-image-wrapper">
+        <img id="qrImage" alt="QR Code para conectar WhatsApp" />
+      </div>
+
+      <div id="qrTimer" class="qr-timer">Carregando...</div>
+
+      <div class="qr-instructions">
+        <h2>Como conectar</h2>
+        <ol>
+          <li>No seu celular, abra o <strong>WhatsApp</strong></li>
+          <li>
+            <strong>Android:</strong> Menu (⋮) → Dispositivos conectados → Conectar um dispositivo<br/>
+            <strong>iPhone:</strong> Ajustes → Dispositivos conectados → Conectar dispositivo
+          </li>
+          <li>Aponte a câmera do celular para este <strong>QR Code</strong></li>
+          <li>Aguarde a confirmação de conexão</li>
+        </ol>
+      </div>
+
+      <div class="back-button">
+        <a href="/" style="text-decoration: none;">
+          <button class="btn-secondary">← Voltar ao início</button>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Obter dados da URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const qrCodeUrl = urlParams.get('qr');
+    const companyName = urlParams.get('company');
+
+    if (!qrCodeUrl) {
+      window.location.href = '/';
+    }
+
+    // Exibir QR Code
+    const qrImage = document.getElementById('qrImage');
+    qrImage.src = qrCodeUrl;
+
+    // Timer de renovação
+    let qrTimeLeft = 60;
+    const qrTimerDiv = document.getElementById('qrTimer');
+    qrTimerDiv.textContent = `QR será renovado em ${qrTimeLeft} segundos`;
+
+    const countdownTimer = setInterval(() => {
+      qrTimeLeft--;
+      if (qrTimeLeft <= 0) qrTimeLeft = 0;
+      qrTimerDiv.textContent = `QR será renovado em ${qrTimeLeft} segundos`;
+    }, 1000);
+
+    // Refresh do QR a cada 60 segundos
+    const refreshTimer = setInterval(() => {
+      qrTimeLeft = 60;
+      qrTimerDiv.textContent = `QR será renovado em ${qrTimeLeft} segundos`;
+      
+      if (qrCodeUrl.startsWith('data:')) {
+        qrImage.src = qrCodeUrl;
+      } else {
+        let url = qrCodeUrl.replace(/[&?]t=\d{13,}/, '');
+        url = url.replace(/[?&]$/, '');
+        qrImage.src = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
+      }
+    }, 60 * 1000);
+
+    // Toast helper
+    const toast = document.getElementById('toast');
+    const showToast = (message, type = 'ok') => {
+      toast.textContent = message;
+      toast.className = 'toast ' + (type === 'ok' ? 'ok' : 'err') + ' show';
+      clearTimeout(toast._hideTimer);
+      toast._hideTimer = setTimeout(() => toast.classList.remove('show'), 3500);
+    };
+
+    // Verificar conexão a cada 4 segundos
+    if (companyName) {
+      const checkTimer = setInterval(async () => {
+        try {
+          const resp = await fetch('/check-connection', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ companyName })
+          });
+          const result = await resp.json();
+          
+          if (result.connected) {
+            clearInterval(countdownTimer);
+            clearInterval(refreshTimer);
+            clearInterval(checkTimer);
+            
+            document.getElementById('successMessage').classList.add('show');
+            qrTimerDiv.textContent = 'WhatsApp conectado! ✅';
+            showToast('WhatsApp conectado com sucesso! ✅', 'ok');
+            
+            // Redireciona após 3 segundos
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 3000);
+          }
+        } catch (e) {
+          console.log('Verificando conexão...');
+        }
+      }, 4000);
+    }
+
+    // Cleanup ao sair da página
+    window.addEventListener('beforeunload', () => {
+      if (countdownTimer) clearInterval(countdownTimer);
+      if (refreshTimer) clearInterval(refreshTimer);
+    });
+  </script>
+</body>
+</html>
