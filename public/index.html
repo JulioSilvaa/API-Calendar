@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calendários para Clientes</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #0f172a;
+      --muted: #667085;
+      --border: #e5e7eb;
+      --primary: #2563eb;
+      --primary-600: #1e40af;
+      --success-bg: #ecfdf3;
+      --success-fg: #027a48;
+      --error-bg: #fef3f2;
+      --error-fg: #b42318;
+      --radius: 12px;
+      --shadow: 0 4px 20px rgba(0,0,0,.06);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); }
+    .container { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    header { background: var(--panel); border-bottom: 1px solid var(--border); }
+    header .container { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; padding-bottom: 14px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .2px; }
+    .brand .logo { width: 28px; height: 28px; border-radius: 6px; background: var(--primary); display: inline-block; }
+    main .container { padding-top: 18px; }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+    @media (min-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; }
+    h1,h2,h3 { margin: 0; }
+    h2 { font-size: 18px; margin-bottom: 12px; }
+    .row { display: flex; align-items: center; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
+    label { display: block; margin: 12px 0 6px; font-weight: 600; font-size: 14px; }
+    input, textarea, select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font: inherit; background: #fff; }
+    textarea { resize: vertical; }
+    button { background: var(--primary); color: white; padding: 10px 14px; border: 0; border-radius: 10px; cursor: pointer; font-weight: 600; }
+    button:hover { background: var(--primary-600); }
+    button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .muted { color: var(--muted); font-size: .925rem; }
+    .status { padding: 10px 12px; border-radius: 10px; margin-top: 10px; display:none; }
+    .status.ok { background: var(--success-bg); color: var(--success-fg); display:block; }
+    .status.err { background: var(--error-bg); color: var(--error-fg); display:block; }
+    .qr-box { display: none; align-items: center; justify-content: center; flex-direction: column; padding: 14px; border: 1px dashed var(--border); background: #fafafa; border-radius: 12px; }
+    .qr-box img { width: 220px; height: 220px; object-fit: contain; background: #fff; padding: 10px; border-radius: 8px; box-shadow: var(--shadow); }
+    .result-box { background: #fbfbfb; border: 1px solid var(--border); border-radius: 10px; padding: 10px; margin-top: 12px; }
+    details summary { cursor: pointer; user-select: none; }
+  /* Toasts (feedback global) */
+  .toast { position: fixed; z-index: 9999; right: 16px; top: 16px; min-width: 240px; max-width: 92vw; padding: 12px 14px; border-radius: 10px; box-shadow: var(--shadow); border: 1px solid var(--border); background: var(--panel); color: var(--text); opacity: 0; transform: translateY(-8px); transition: opacity .25s ease, transform .25s ease; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.ok { border-color: #96e1c2; background: var(--success-bg); color: var(--success-fg); }
+  .toast.err { border-color: #f2a29b; background: var(--error-bg); color: var(--error-fg); }
+  @media (max-width: 520px) { .toast { left: 50%; right: auto; transform: translate(-50%, -8px); max-width: calc(100vw - 24px); } .toast.show { transform: translate(-50%, 0); } }
+  /* Spinner no botão */
+  .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.9); border-right-color: transparent; border-radius: 50%; display: none; margin-right: 8px; vertical-align: -2px; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .btn-loading { opacity: .85; }
+  .btn-loading .spinner { display: inline-block; }
+  button:disabled { cursor: not-allowed; filter: grayscale(6%); }
+  </style>
+</head>
+<body>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <header>
+    <div class="container">
+      <div class="brand"><span class="logo" aria-hidden="true"></span> <span>Agenda de Clientes</span></div>
+    </div>
+  </header>
+  <main>
+    <div class="container">
+      <div class="grid">
+        <section class="card" aria-labelledby="authTitle">
+          <h2 id="authTitle">Acesso</h2>
+          <div class="row" id="auth" style="margin-top:8px; gap:12px;">
+            <div id="not-logged" style="display:none" class="muted">Entre com sua conta Google para autorizar a criação de calendários.</div>
+            <div id="logged" style="display:none; gap:8px; align-items:center;" class="row">
+              <div class="muted">Logado como <strong id="userEmail"></strong></div>
+              <button class="secondary" id="logoutBtn">Sair</button>
+            </div>
+            <a id="loginBtn" href="/auth/google/initiate" style="text-decoration:none;">
+              <button id="googleLoginBtn" type="button" aria-label="Entrar com Google" style="display:inline-flex; align-items:center; gap:8px;">
+                <!-- Google G icon (simple inline SVG) -->
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M17.64 9.2045c0-.638-.057-1.251-.164-1.84H9v3.486h4.844c-.21 1.137-.84 2.1-1.795 2.747v2.286h2.904c1.7-1.566 2.687-3.88 2.687-6.679z" fill="#4285F4"/>
+                  <path d="M9 18c2.43 0 4.47-.8 5.96-2.168l-2.904-2.286C11.54 13.01 10.34 13.6 9 13.6c-2.3 0-4.25-1.55-4.947-3.634H1.01v2.283C2.5 15.86 5.53 18 9 18z" fill="#34A853"/>
+                  <path d="M4.053 10.0c-.218-.66-.218-1.367 0-2.027V5.69H1.01C.364 6.907.0 8.385.0 10c0 1.615.364 3.093 1.01 4.31l3.043-2.31z" fill="#FBBC05"/>
+                  <path d="M9 3.8c1.32 0 2.51.45 3.447 1.325l2.58-2.58C13.47 1.34 11.43.4 9 .4 5.53.4 2.5 2.54 1.01 5.69l3.043 2.283C4.75 5.35 6.7 3.8 9 3.8z" fill="#EA4335"/>
+                </svg>
+                <span>Entrar com Google</span>
+              </button>
+            </a>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="formTitle">
+          <h2 id="formTitle">Criar novo calendário</h2>
+          <form id="calForm" style="margin-top:6px;">
+            <!-- Mantemos apenas Nome da empresa visível; os demais campos agora são ocultos e preenchidos automaticamente -->
+            <label for="company">Nome da empresa</label>
+            <input id="company" name="company" placeholder="Ex.: Empresa XYZ" required />
+
+            <!-- Campos convertidos para hidden (removidos da UI) -->
+            <input type="hidden" id="summary" name="summary" />
+            <input type="hidden" id="whatsapp" name="whatsapp" />
+            <input type="hidden" id="description" name="description" value="" />
+            <input type="hidden" id="tz" name="tz" value="America/Sao_Paulo" />
+
+            <!-- Campo 'Nome do atendente' removido; apenas companyName permanece -->
+
+            <div style="margin-top: 12px; display:flex; gap:8px; align-items:center;">
+              <button type="submit" id="submitBtn"><span id="btnSpinner" class="spinner" aria-hidden="true"></span><span id="btnText">Criar calendário</span></button>
+              <div id="formStatus" class="status" role="status" aria-live="polite"></div>
+            </div>
+          </form>
+
+          <div id="qrSection" class="qr-box" style="margin-top:14px;">
+            <img id="qrImg" alt="QR Code" />
+            <div id="qrTimer" class="muted" style="margin-top:8px;font-size:15px;"></div>
+            <div class="muted" id="qrCaption">Escaneie para conectar sua instância.</div>
+            <div class="howto" style="margin-top:10px; text-align:left; max-width:520px;">
+              <h3 style="margin:6px 0 6px; font-size:16px;">Como conectar o WhatsApp</h3>
+              <ol class="muted" style="margin:0; padding-left:18px; line-height:1.5;">
+                <li>No seu celular, abra o WhatsApp.</li>
+                <li>
+                  Android: toque em Menu (⋮) > Dispositivos conectados > Conectar um dispositivo.
+                  <br/>
+                  iPhone: Ajustes > Dispositivos conectados > Conectar dispositivo.
+                </li>
+                <li>Aponte a câmera para este QR Code.</li>
+                <li>Aguarde a confirmação de conexão. Mantenha o celular com internet estável.</li>
+              </ol>
+            </div>
+          </div>
+
+          <!-- Removido: bloco de detalhes da resposta -->
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    
+
+    async function fetchMe(){
+      const res = await fetch('/me');
+      const data = await res.json();
+      const logged = !!data.email;
+      document.getElementById('not-logged').style.display = logged ? 'none' : 'block';
+      document.getElementById('loginBtn').style.display = logged ? 'none' : 'inline-block';
+      document.getElementById('logged').style.display = logged ? 'flex' : 'none';
+      if (logged) document.getElementById('userEmail').textContent = data.email;
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try {
+        const r = await fetch('/logout', { method: 'POST' });
+        if (!r.ok) throw new Error('POST /logout falhou');
+      } catch (e) {
+        // Fallback para GET caso algum proxy/browse bloqueie POST + Set-Cookie
+        await fetch('/logout', { method: 'GET' });
+      }
+      await fetchMe();
+    });
+
+    document.getElementById('calForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+  const companyName = document.getElementById('company').value.trim();
+      // Preenche summary automaticamente a partir do nome da empresa
+      const summary = companyName || 'Calendário do Cliente';
+      document.getElementById('summary').value = summary;
+  // attendantName removido: não é mais solicitado
+  // whatsapp removido do formulário e do envio
+      const description = document.getElementById('description').value.trim();
+      const timeZone = document.getElementById('tz').value;
+
+      const formStatus = document.getElementById('formStatus');
+ 
+      const qrSection = document.getElementById('qrSection');
+      const qrImg = document.getElementById('qrImg');
+      const toast = document.getElementById('toast');
+      const submitBtn = document.getElementById('submitBtn');
+      const btnSpinner = document.getElementById('btnSpinner');
+      const btnText = document.getElementById('btnText');
+
+      const showToast = (message, type = 'ok') => {
+        toast.textContent = message;
+        toast.className = 'toast ' + (type === 'ok' ? 'ok' : 'err') + ' show';
+        clearTimeout(toast._hideTimer);
+        toast._hideTimer = setTimeout(() => toast.classList.remove('show'), 3500);
+      };
+ 
+
+      // Não validar o WhatsApp aqui: envio prossegue mesmo se estiver vazio ou inválido
+      formStatus.textContent = 'Enviando...';
+      formStatus.className = 'status';
+      formStatus.style.display = 'block';
+      // Se havia um timer de refresh do QR, limpamos antes de esconder
+      if (window._qrRefreshTimer) {
+        clearInterval(window._qrRefreshTimer);
+        window._qrRefreshTimer = null;
+        window._currentQrUrl = null;
+      }
+      qrSection.style.display = 'none';
+  qrSection.classList.remove('ready');
+  // botão em loading
+  submitBtn.disabled = true;
+  submitBtn.classList.add('btn-loading');
+  btnSpinner.style.display = 'inline-block';
+  btnText.textContent = 'Enviando...';
+
+  const body = { calendar: { summary, description, timeZone }, companyName };
+      try {
+        const res = await fetch('/calendars', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await res.json();
+
+        // Mostrar status amigável
+        if (data.error || data.message === 'Error in workflow' || res.status >= 400) {
+          formStatus.textContent = data.error || data.message || 'Falha ao criar o calendário.';
+          formStatus.className = 'status err';
+        } else {
+          formStatus.textContent = 'Calendário criado com sucesso';
+          formStatus.className = 'status ok';
+          showToast('Calendário criado com sucesso', 'ok');
+        }
+
+        // QR Code, se houver (compat: raiz ou dentro de n8n)
+        const qrUrl = data.qrCodeUrl || (data.n8n && (data.n8n.qrCodeUrl || (data.n8n.data && data.n8n.data.qrCodeUrl)));
+        if (qrUrl) {
+          qrImg.src = qrUrl;
+          qrSection.style.display = 'flex';
+          qrSection.classList.add('ready');
+          showToast('QR Code pronto para leitura', 'ok');
+          console.log('QR exibido:', qrUrl);
+
+          // Limpa timers anteriores
+          if (window._qrRefreshTimer) { clearInterval(window._qrRefreshTimer); window._qrRefreshTimer = null; }
+          if (window._qrCheckTimer) { clearInterval(window._qrCheckTimer); window._qrCheckTimer = null; }
+          if (window._qrCountdownTimer) { clearInterval(window._qrCountdownTimer); window._qrCountdownTimer = null; }
+
+          window._currentQrUrl = qrUrl;
+          // Timer visual
+          let qrTimeLeft = 60;
+          const qrTimerDiv = document.getElementById('qrTimer');
+          qrTimerDiv.textContent = `QR será renovado em ${qrTimeLeft} segundos`;
+          window._qrCountdownTimer = setInterval(() => {
+            qrTimeLeft--;
+            if (qrTimeLeft <= 0) qrTimeLeft = 0;
+            qrTimerDiv.textContent = `QR será renovado em ${qrTimeLeft} segundos`;
+          }, 1000);
+
+          // Timer para renovar QR (recarregar src ou buscar novo)
+          window._qrRefreshTimer = setInterval(() => {
+            try {
+              qrTimeLeft = 60;
+              qrTimerDiv.textContent = `QR será renovado em ${qrTimeLeft} segundos`;
+              if (window._currentQrUrl.startsWith('data:')) {
+                // Apenas reatribui o src para forçar redraw (não adiciona ?t=...)
+                qrImg.src = window._currentQrUrl;
+              } else {
+                // Remove qualquer parâmetro t= existente antes de adicionar um novo
+                let url = window._currentQrUrl.replace(/[&?]t=\d{13,}/, '');
+                // Remove trailing ? ou & se ficou sobrando
+                url = url.replace(/[?&]$/, '');
+                qrImg.src = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
+              }
+            } catch (e) {}
+          }, 60 * 1000);
+
+          // Timer para checar conexão (simula endpoint /check-connection)
+          window._qrCheckTimer = setInterval(async () => {
+            try {
+              const resp = await fetch('/check-connection', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ companyName })
+              });
+              const result = await resp.json();
+              if (result.connected) {
+                clearInterval(window._qrRefreshTimer);
+                clearInterval(window._qrCheckTimer);
+                clearInterval(window._qrCountdownTimer);
+                qrSection.style.display = 'none';
+                showToast('Instância conectada com sucesso! ✅', 'ok');
+                formStatus.textContent = 'Instância conectada com sucesso! ✅';
+                formStatus.className = 'status ok';
+              }
+            } catch (e) {}
+          }, 4000);
+        } else {
+          qrSection.style.display = 'none';
+        }
+
+  // Log no console para diagnóstico, mantendo a interface limpa
+  console.log('Resposta /calendars:', data);
+      } catch (err) {
+        formStatus.textContent = 'Erro: ' + err.message;
+        formStatus.className = 'status err';
+        showToast(formStatus.textContent, 'err');
+      } finally {
+        // botão volta ao normal
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('btn-loading');
+        btnSpinner.style.display = 'none';
+        btnText.textContent = 'Criar calendário';
+      }
+    });
+
+    fetchMe();
+
+    // Limpa timer de refresh do QR ao sair da página
+    window.addEventListener('beforeunload', () => {
+      if (window._qrRefreshTimer) clearInterval(window._qrRefreshTimer);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+{
+  "name": "Create Google Calendar",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "create-calendar",
+        "responseMode": "lastNode",
+        "options": {
+          "responseCode": 201
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        260,
+        300
+      ],
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/calendar/v3/calendars",
+        "method": "POST",
+        "authentication": "none",
+        "sendBody": true,
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={{ $json.calendar }}",
+        "headerParametersJson": "={{ ({ Authorization: 'Bearer ' + $json.tokens.access_token }) }}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        300
+      ],
+      "name": "HTTP Create Calendar"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/{{$node['HTTP Create Calendar'].json.id}}/acl",
+        "method": "POST",
+        "authentication": "none",
+        "sendBody": true,
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={{ ({ scope: { type: 'user', value: $item(0).$node['Webhook'].json.hitempEmail || 'comercial.hitemp@gmail.com' }, role: 'writer' }) }}",
+        "headerParametersJson": "={{ ({ Authorization: 'Bearer ' + $item(0).$node['Webhook'].json.tokens.access_token }) }}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        300
+      ],
+      "name": "HTTP Share Calendar"
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "options": {},
+        "values": {
+          "string": [
+            {
+              "name": "id",
+              "value": "={{ $item(0).$node['HTTP Create Calendar'].json.id }}"
+            },
+            {
+              "name": "summary",
+              "value": "={{ $item(0).$node['HTTP Create Calendar'].json.summary }}"
+            },
+            {
+              "name": "timeZone",
+              "value": "={{ $item(0).$node['HTTP Create Calendar'].json.timeZone }}"
+            },
+            {
+              "name": "etag",
+              "value": "={{ $item(0).$node['HTTP Create Calendar'].json.etag }}"
+            },
+            {
+              "name": "companyName",
+              "value": "={{ $item(0).$node['Webhook'].json.companyName || $item(0).$node['Webhook'].json.calendar?.companyName || '' }}"
+            },
+            {
+              "name": "whatsapp",
+              "value": "={{ $item(0).$node['Webhook'].json.whatsapp || '' }}"
+            },
+            {
+              "name": "sharedWith",
+              "value": "={{ $item(0).$node['Webhook'].json.hitempEmail || '' }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        940,
+        300
+      ],
+      "name": "Set Calendar Result"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Create Calendar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Create Calendar": {
+      "main": [
+        [
+          {
+            "node": "HTTP Share Calendar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Share Calendar": {
+      "main": [
+        [
+          {
+            "node": "Set Calendar Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

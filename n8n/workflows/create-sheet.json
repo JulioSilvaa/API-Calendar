@@ -1,0 +1,94 @@
+{
+  "name": "Create Google Sheet",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "create-sheet",
+        "responseMode": "lastNode",
+        "options": {
+          "responseCode": 201
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        260,
+        300
+      ],
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "url": "https://sheets.googleapis.com/v4/spreadsheets",
+        "method": "POST",
+        "authentication": "none",
+        "sendBody": true,
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={{ $json.sheet }}",
+        "headerParametersJson": "={{ ({ Authorization: 'Bearer ' + $json.tokens.access_token }) }}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        300
+      ],
+      "name": "HTTP Create Sheet"
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "options": {},
+        "values": {
+          "string": [
+            {
+              "name": "spreadsheetId",
+              "value": "={{ $json.spreadsheetId }}"
+            },
+            {
+              "name": "title",
+              "value": "={{ $json.properties.title }}"
+            },
+            {
+              "name": "spreadsheetUrl",
+              "value": "={{ $json.spreadsheetUrl }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        820,
+        300
+      ],
+      "name": "Set Sheet Result"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Create Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Create Sheet": {
+      "main": [
+        [
+          {
+            "node": "Set Sheet Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
