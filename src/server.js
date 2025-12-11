@@ -6,6 +6,7 @@ import authRouter from "./web/auth.js";
 import calendarRouter from "./web/calendar.js";
 import sheetsRouter from "./web/sheets.js";
 import eventsRouter from "./web/events.js";
+import evolutionRouter from "./web/evolution.js";
 
 dotenv.config();
 
@@ -44,6 +45,7 @@ app.use("/auth/google", authRouter);
 app.use("/calendars", calendarRouter);
 app.use("/sheets", sheetsRouter);
 app.use("/events", eventsRouter);
+app.use("/evolution", evolutionRouter);
 
 // Info de sessão simples
 app.get("/me", (req, res) => {
@@ -51,7 +53,7 @@ app.get("/me", (req, res) => {
   res.json({ email });
 });
 
-// Verificar status de conexão do WhatsApp
+// Verificar status de conexão do WhatsApp via Evolution API
 app.post("/check-connection", async (req, res) => {
   try {
     const { companyName } = req.body || {};
@@ -63,36 +65,46 @@ app.post("/check-connection", async (req, res) => {
       });
     }
 
-    // URL do webhook n8n para verificar conexão
-    const checkConnectionUrl = process.env.N8N_CHECK_CONNECTION_URL;
+    // Configurações da Evolution API
+    const evolutionApiUrl = process.env.EVOLUTION_API_URL;
+    const evolutionApiKey = process.env.EVOLUTION_API_KEY;
     
-    if (!checkConnectionUrl) {
-      // Se não tiver webhook configurado, retorna como não conectado
+    if (!evolutionApiUrl || !evolutionApiKey) {
+      console.log('⚠️ EVOLUTION_API_URL ou EVOLUTION_API_KEY não configurados');
       return res.json({ connected: false });
     }
 
-    // Chama o webhook do n8n para verificar status
+    // Consultar status da instância na Evolution API
     const axios = (await import("axios")).default;
-    const response = await axios.post(
-      checkConnectionUrl,
-      { companyName },
+    const instanceName = companyName; // ou use alguma transformação se necessário
+    
+    const response = await axios.get(
+      `${evolutionApiUrl}/instance/connectionState/${instanceName}`,
       { 
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "apikey": evolutionApiKey,
+          "Content-Type": "application/json"
+        },
         timeout: 5000 
       }
     );
 
-    const connected = response.data?.connected || response.data?.status === "connected" || false;
+    // Evolution API retorna: { state: "open" | "close" | "connecting" }
+    const state = response.data?.state || response.data?.instance?.state;
+    const connected = state === "open";
+    
+    console.log(`📱 Status WhatsApp [${instanceName}]:`, state);
     
     res.json({ 
       connected,
-      status: response.data?.status || null,
+      status: state,
+      instanceName,
       data: response.data 
     });
   } catch (err) {
     // Em caso de erro, assume que não está conectado
-    console.error("Erro ao verificar conexão:", err.message);
-    res.json({ connected: false });
+    console.error("❌ Erro ao verificar conexão:", err.message);
+    res.json({ connected: false, error: err.message });
   }
 });
 

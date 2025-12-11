@@ -383,29 +383,28 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
   btnSpinner.style.display = 'inline-block';
   btnText.textContent = 'Enviando...';
 
-  const body = { calendar: { summary, description, timeZone }, companyName };
+  const body = { companyName };
   try {
-    const res = await fetch('/calendars', { 
+    const res = await fetch('/evolution/create-instance', { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' }, 
       body: JSON.stringify(body) 
     });
     const data = await res.json();
 
-    if (data.error || data.message === 'Error in workflow' || res.status >= 400) {
-      formStatus.textContent = data.error || data.message || 'Falha ao criar o calendário.';
+    if (data.error || res.status >= 400) {
+      formStatus.textContent = data.error || data.details || 'Falha ao criar instância.';
       formStatus.className = 'status err';
-      showToast(data.error || data.message || 'Erro ao criar calendário', 'err');
+      showToast(data.error || 'Erro ao criar instância', 'err');
     } else {
-      formStatus.textContent = 'Calendário criado com sucesso! Redirecionando...';
+      formStatus.textContent = 'Instância criada com sucesso! Redirecionando...';
       formStatus.className = 'status ok';
-      showToast('Calendário criado com sucesso!', 'ok');
+      showToast('Instância criada com sucesso!', 'ok');
 
-      // Se houver QR Code, redireciona para página dedicada
-      const qrUrl = data.qrCodeUrl || (data.n8n && (data.n8n.qrCodeUrl || (data.n8n.data && data.n8n.data.qrCodeUrl)));
+      // Redireciona para página do QR Code
+      const qrUrl = data.qrCodeUrl;
       
       if (qrUrl) {
-        // Redireciona para página do QR Code após 1 segundo
         setTimeout(() => {
           const params = new URLSearchParams({
             qr: qrUrl,
@@ -413,10 +412,13 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
           });
           window.location.href = `/qrcode.html?${params.toString()}`;
         }, 1000);
+      } else {
+        formStatus.textContent = 'Erro: QR Code não foi gerado';
+        formStatus.className = 'status err';
       }
     }
 
-    console.log('Resposta /calendars:', data);
+    console.log('Resposta /evolution/create-instance:', data);
   } catch (err) {
     formStatus.textContent = 'Erro: ' + err.message;
     formStatus.className = 'status err';
