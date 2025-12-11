@@ -51,6 +51,51 @@ app.get("/me", (req, res) => {
   res.json({ email });
 });
 
+// Verificar status de conexão do WhatsApp
+app.post("/check-connection", async (req, res) => {
+  try {
+    const { companyName } = req.body || {};
+    
+    if (!companyName) {
+      return res.status(400).json({ 
+        error: "companyName é obrigatório",
+        connected: false 
+      });
+    }
+
+    // URL do webhook n8n para verificar conexão
+    const checkConnectionUrl = process.env.N8N_CHECK_CONNECTION_URL;
+    
+    if (!checkConnectionUrl) {
+      // Se não tiver webhook configurado, retorna como não conectado
+      return res.json({ connected: false });
+    }
+
+    // Chama o webhook do n8n para verificar status
+    const axios = (await import("axios")).default;
+    const response = await axios.post(
+      checkConnectionUrl,
+      { companyName },
+      { 
+        headers: { "Content-Type": "application/json" },
+        timeout: 5000 
+      }
+    );
+
+    const connected = response.data?.connected || response.data?.status === "connected" || false;
+    
+    res.json({ 
+      connected,
+      status: response.data?.status || null,
+      data: response.data 
+    });
+  } catch (err) {
+    // Em caso de erro, assume que não está conectado
+    console.error("Erro ao verificar conexão:", err.message);
+    res.json({ connected: false });
+  }
+});
+
 // Logout: limpa cookie e redireciona para home
 app.post("/logout", (req, res) => {
   // Use os mesmos atributos usados no set para garantir remoção em todos os navegadores
