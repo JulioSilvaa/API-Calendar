@@ -1,195 +1,247 @@
-# API Calendar + n8n
+# 📅 API Calendar - Integração Google Calendar + n8n + WhatsApp
 
-API em Node.js (Express) para autenticar usuários com Google (OAuth2) e criar calendários via um workflow no n8n.
+Sistema completo para criação automatizada de calendários no Google Calendar com integração WhatsApp via Evolution API, orquestrado pelo n8n.
 
-## Requisitos
-- Node.js 18+ (ou Docker + Docker Compose)
-- Uma conta Google Cloud com OAuth Client (tipo Web)
-- Uma instância do n8n acessível por URL pública
+## 🚀 O que é este projeto?
 
-## Configuração do Google OAuth
-1. Acesse Google Cloud Console > APIs & Services > Credentials
-2. Crie um OAuth 2.0 Client ID (tipo Web) com Authorized redirect URI apontando para:
-   - `http://localhost:3000/auth/google/callback` (ou a URL pública do seu servidor)
-3. Habilite a API "Google Calendar API" em APIs & Services > Library
+Uma aplicação web que permite criar calendários personalizados no Google Calendar de forma automatizada. Ao preencher um formulário simples, o sistema:
 
-## Variáveis de ambiente
-Crie um arquivo `.env` na raiz com:
+1. **Autentica** com Google OAuth
+2. **Cria** um calendário personalizado via n8n
+3. **Gera** QR Code para conectar WhatsApp
+4. **Armazena** dados de forma segura em PostgreSQL
 
+## 🛠️ Tecnologias Utilizadas
+
+### Backend
+- **Node.js** + **Express** - API REST
+- **PostgreSQL** - Banco de dados com criptografia
+- **Google OAuth 2.0** - Autenticação segura
+- **Docker** - Containerização e deploy
+
+### Integrações
+- **n8n** - Automação e orquestração de workflows
+- **Google Calendar API** - Criação de calendários
+- **Evolution API** - Integração WhatsApp Business
+
+### Frontend
+- **HTML5** + **CSS3** + **JavaScript** vanilla
+- Design responsivo e moderno
+- Validação de formulários em tempo real
+
+## 📋 Como Funciona
+
+### 1. Autenticação
+O usuário faz login com sua conta Google. O sistema solicita permissões para:
+- Acessar informações básicas do perfil
+- Criar e gerenciar calendários
+- Criar planilhas (opcional)
+
+### 2. Preenchimento do Formulário
+O usuário preenche:
+- Nome completo
+- Email de contato
+- Telefone
+- CPF/CNPJ
+- Nome da empresa
+- CEP
+
+### 3. Processamento
+1. Dados são enviados para o **n8n**
+2. n8n cria o calendário no **Google Calendar**
+3. Sistema gera **QR Code** via Evolution API
+4. Dados são salvos de forma **criptografada** no PostgreSQL
+
+### 4. Conexão WhatsApp
+- Usuário escaneia o QR Code
+- WhatsApp é conectado à instância
+- Sistema verifica status da conexão automaticamente
+
+## 🎯 Arquitetura
+
+```
+┌─────────────┐
+│   Frontend  │ (HTML/CSS/JS)
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│  Express    │ (Node.js API)
+│   Server    │
+└──────┬──────┘
+       │
+       ├──────────► PostgreSQL (Tokens criptografados)
+       │
+       ├──────────► n8n (Workflow automation)
+       │                 │
+       │                 ├──► Google Calendar API
+       │                 └──► Evolution API
+       │
+       └──────────► Evolution API (WhatsApp QR Code)
+```
+
+## 🐳 Executando com Docker
+
+### Desenvolvimento
 ```bash
-PORT=3000
-APP_BASE_URL=http://localhost:3000
-GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=xxxx
-GOOGLE_REDIRECT_URI=http://localhost:3000/auth/google/callback
-N8N_WEBHOOK_URL=https://seu-n8n.example.com/webhook/create-calendar
-N8N_WEBHOOK_URL_SHEETS=https://seu-n8n.example.com/webhook/create-sheet
-
-# Database Configuration (PostgreSQL)
-DB_HOST=postgres
-DB_PORT=5432
-DB_NAME=api_calendar
-DB_USER=api_calendar_user
-DB_PASSWORD=<senha-forte-aqui>
-
-# Encryption Key (gerar com: openssl rand -base64 32)
-ENCRYPTION_KEY=<chave-de-32-bytes-base64>
-```
-
-**🔐 Segurança**: Os tokens OAuth agora são armazenados de forma segura em PostgreSQL com criptografia AES-256 via pgcrypto. Consulte [SECURITY_SETUP.md](./SECURITY_SETUP.md) para instruções detalhadas de configuração.
-
-## Instalação e execução
-
-### Opção 1: Execução Local (sem Docker)
-1. Instale dependências
-```powershell
-npm install
-```
-2. Inicie o servidor
-```powershell
-npm run dev
-```
-A API ficará em `http://localhost:3000`.
-
-### Opção 2: Execução com Docker 🐳
-
-#### Pré-requisitos
-- [Docker](https://docs.docker.com/get-docker/) instalado
-- [Docker Compose](https://docs.docker.com/compose/install/) instalado
-
-#### Desenvolvimento
-```bash
-# Iniciar em modo desenvolvimento (com hot reload)
-docker-compose --profile dev up
-
-# Ou em background
-docker-compose --profile dev up -d
+# Iniciar todos os serviços
+docker compose --profile dev up -d
 
 # Ver logs
-docker-compose logs -f
-
-# Parar containers
-docker-compose --profile dev down
-```
-
-#### Produção
-```bash
-# Build e iniciar em modo produção
-docker-compose --profile prod up -d
-
-# Ver logs
-docker-compose logs -f api-calendar-prod
+docker compose logs -f api-calendar
 
 # Parar
-docker-compose --profile prod down
+docker compose --profile dev down
 ```
 
-#### Comandos Úteis
+### Produção
 ```bash
-# Rebuild da imagem (após mudanças no código)
-docker-compose build
+# Iniciar em modo produção
+docker compose --profile prod up -d
 
-# Acessar shell do container
-docker-compose exec api-calendar sh
-
-# Ver status dos containers
-docker-compose ps
-
-# Remover volumes (cuidado: apaga dados!)
-docker-compose down -v
+# Parar
+docker compose --profile prod down
 ```
 
-#### Troubleshooting Docker
-- **Porta 3000 já em uso**: Mude a porta no `docker-compose.yml` (ex: `"3001:3000"`)
-- **Erro de permissão em `./data`**: Verifique permissões da pasta ou crie manualmente
-- **Container não inicia**: Verifique se o arquivo `.env` existe e está configurado
-- **Hot reload não funciona**: Certifique-se de estar usando o perfil `dev`
-- **Erro de conexão com banco**: Execute `npm run test-db` para diagnosticar problemas
+A aplicação estará disponível em: **http://localhost:3000**
 
+## 📱 Funcionalidades
 
-## Fluxo de autenticação
-- Inicie: abra no navegador `http://localhost:3000/auth/google/initiate`
-- Faça login e aceite permissões
-- No callback, os tokens são salvos por e-mail
+### ✅ Gestão de Calendários
+- Criação automatizada via n8n
+- Personalização por empresa
+- Fuso horário configurável
 
-## Endpoint para criar calendário
- Rota: `POST /calendars`
- Body JSON (agora pode incluir `companyName` opcional):
+### ✅ Integração WhatsApp
+- Geração automática de QR Code
+- Verificação de status de conexão
+- Suporte para múltiplas instâncias
+
+### ✅ Segurança
+- OAuth 2.0 do Google
+- Tokens criptografados (AES-256)
+- Logout automático
+- Dados sanitizados
+
+### ✅ Interface Amigável
+- Design moderno e responsivo
+- Validação em tempo real
+- Feedback visual de ações
+- Máscaras para campos (telefone, CPF, CEP)
+
+## 🔄 Fluxo de Dados
+
+### Criação de Calendário
+```
+1. Usuário preenche formulário
+   ↓
+2. Frontend valida dados
+   ↓
+3. API autentica usuário (OAuth)
+   ↓
+4. API envia para n8n webhook
+   ↓
+5. n8n cria calendário no Google
+   ↓
+6. API gera QR Code (Evolution)
+   ↓
+7. Frontend exibe QR Code
+   ↓
+8. Usuário conecta WhatsApp
+```
+
+### Dados Enviados ao n8n
 ```json
 {
-  "email": "user@example.com",
+  "email": "cliente@example.com",
+  "authenticatedEmail": "admin@empresa.com",
+  "fullName": "João Silva",
+  "phone": "11999999999",
+  "document": "12345678900",
+  "companyName": "Empresa XYZ",
+  "cep": "12345678",
   "calendar": {
-    "summary": "Calendário do Cliente",
-    "description": "Criado via API",
+    "summary": "Calendário Empresa XYZ",
     "timeZone": "America/Sao_Paulo"
-  }
+  },
+  "tokens": { ... }
 }
 ```
- Resultado: a API encaminha ao webhook do n8n com os tokens desse usuário + (se enviado) `companyName`. O n8n executa a criação do calendário pela Google API e retorna a resposta.
 
-## Workflow do n8n (resumo)
-1. Webhook (POST): recebe `email`, `tokens`, `calendar` do body (configure a URL pública do n8n em `N8N_WEBHOOK_URL`).
-2. Nó HTTP Request: criar calendário
-  - Método: POST
-  - URL: `https://www.googleapis.com/calendar/v3/calendars`
-  - Body: `={{ $json["calendar"] }}` (RAW JSON)
-  - Headers: `Content-Type: application/json`
-  - Autorização: selecione "None" e adicione header `Authorization: Bearer {{$json["tokens"]["access_token"]}}`
-3. Retorne a resposta do Google (payload já estruturado pelo nó HTTP).
+## 🎨 Interface
 
-Exemplo de workflow em `n8n/workflows/create-calendar.json`.
+### Página Principal
+- Formulário de cadastro completo
+- Autenticação Google integrada
+- Validação em tempo real
+- Feedback visual de erros
 
-## Criar Planilha (Google Sheets)
-- Escopo adicional necessário: `https://www.googleapis.com/auth/spreadsheets`
-- Endpoint: `POST /sheets`
-- Body JSON:
-```json
-{
-  "email": "user@example.com",
-  "sheet": { "properties": { "title": "Minha Planilha" } },
-  "companyName": "Empresa XYZ"
-}
+### Página QR Code
+- Exibição do QR Code
+- Timer de renovação
+- Instruções de conexão
+- Verificação automática de status
+
+## 🔌 Endpoints da API
+
+### Autenticação
+- `GET /auth/google/initiate` - Inicia OAuth
+- `GET /auth/google/callback` - Callback OAuth
+- `POST /logout` - Desconecta usuário
+
+### Calendários
+- `POST /calendars` - Cria calendário via n8n
+
+### WhatsApp
+- `POST /check-connection` - Verifica conexão WhatsApp
+
+### Utilidades
+- `GET /health` - Status da API
+- `GET /me` - Informações do usuário logado
+
+## 🌟 Diferenciais
+
+- **Totalmente Dockerizado** - Deploy simples e rápido
+- **Criptografia de Ponta** - Tokens protegidos com AES-256
+- **Automação Completa** - n8n orquestra todo o fluxo
+- **Multi-instância** - Suporta múltiplas empresas
+- **Sanitização de Dados** - Limpeza automática de campos
+- **Logs Detalhados** - Rastreamento completo de operações
+
+## 📦 Estrutura do Projeto
+
 ```
-- Variável de ambiente: `N8N_WEBHOOK_URL_SHEETS` apontando para o webhook do n8n.
-- Workflow n8n:
-  1) Webhook (POST)
-  2) HTTP Request
-     - Método: POST
-     - URL: `https://sheets.googleapis.com/v4/spreadsheets`
-     - Auth: None
-     - Headers: `Authorization: Bearer {{$json["tokens"]["access_token"]}}`, `Content-Type: application/json`
-     - Body (RAW JSON): `={{ $json["sheet"] }}`
-  3) (Opcional) Set para retornar apenas: `spreadsheetId`, `properties.title`, `spreadsheetUrl`.
-
-## Segurança e Armazenamento
-
-### 🔐 Armazenamento Seguro de Tokens
-Os tokens OAuth são armazenados com segurança usando:
-- **PostgreSQL** com criptografia via extensão `pgcrypto`
-- **Criptografia AES-256** para access_token e refresh_token
-- **Chave de criptografia** armazenada em variável de ambiente
-- **Isolamento** via container Docker
-
-### 📚 Documentação de Segurança
-- [SECURITY_SETUP.md](./SECURITY_SETUP.md) - Guia completo de configuração
-- [CREDENTIALS_SETUP.md](./CREDENTIALS_SETUP.md) - Configuração rápida
-
-### 🔧 Scripts Úteis
-```bash
-# Testar conexão com banco de dados
-npm run test-db
-
-# Migrar tokens existentes do arquivo para PostgreSQL
-npm run migrate
+api-calendar/
+├── public/              # Frontend (HTML/CSS/JS)
+│   ├── index.html      # Página principal
+│   ├── qrcode.html     # Página do QR Code
+│   ├── script.js       # Lógica do formulário
+│   └── style.css       # Estilos
+├── src/
+│   ├── server.js       # Servidor Express
+│   ├── web/            # Rotas da API
+│   │   ├── auth.js     # Autenticação Google
+│   │   ├── calendar.js # Gestão de calendários
+│   │   └── evolution.js # Integração WhatsApp
+│   └── utils/          # Utilitários
+│       └── storage-postgres.js # Armazenamento seguro
+├── docker-compose.yml  # Configuração Docker
+├── Dockerfile          # Build da aplicação
+└── init.sql           # Inicialização do banco
 ```
 
-## Observações
-- Escopos usados: `openid email profile https://www.googleapis.com/auth/calendar`
-- Tokens são criptografados e armazenados em PostgreSQL
-- Para produção, use credenciais diferentes e considere AWS Secrets Manager ou HashiCorp Vault
+## 🤝 Contribuindo
 
-## Saúde
-- `GET /health` retorna `{ status: "ok" }`.
+Contribuições são bem-vindas! Sinta-se à vontade para:
+- Reportar bugs
+- Sugerir novas funcionalidades
+- Melhorar a documentação
+- Enviar pull requests
 
-## Licença
-MIT
+## 📄 Licença
+
+MIT - Sinta-se livre para usar este projeto!
+
+---
+
+**Desenvolvido com ❤️ usando Node.js, n8n e Evolution API**
