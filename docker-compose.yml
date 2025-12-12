@@ -1,0 +1,101 @@
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: api-calendar-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-api_calendar}
+      POSTGRES_USER: ${DB_USER:-api_calendar_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - api-calendar-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-api_calendar_user} -d ${DB_NAME:-api_calendar}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    profiles:
+      - dev
+      - prod
+
+  api-calendar:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: api-calendar
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DB_HOST=postgres
+    volumes:
+      # Volume para persistência de dados
+      - ./data:/app/data
+      # Volume para hot reload em desenvolvimento (comentar em produção)
+      - ./src:/app/src:ro
+      - ./public:/app/public:ro
+    networks:
+      - api-calendar-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    profiles:
+      - dev
+
+  # Serviço para produção
+  api-calendar-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: api-calendar-prod
+    restart: always
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_HOST=postgres
+    volumes:
+      # Apenas volume de dados em produção
+      - ./data:/app/data
+    networks:
+      - api-calendar-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    profiles:
+      - prod
+
+networks:
+  api-calendar-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
