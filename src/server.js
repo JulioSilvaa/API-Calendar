@@ -19,16 +19,13 @@ if (process.env.TRUST_PROXY?.toLowerCase() === "true") {
   app.set("trust proxy", true);
 }
 
-// Log simples de requisições com ID de correlação
+// Adiciona ID de correlação às requisições
 app.use((req, res, next) => {
   const reqId = crypto.randomUUID
     ? crypto.randomUUID()
     : crypto.randomBytes(8).toString("hex");
   req.id = reqId;
   res.setHeader("x-request-id", reqId);
-  console.log(
-    `[${new Date().toISOString()}] [${reqId}] ${req.method} ${req.url}`
-  );
   next();
 });
 
@@ -92,8 +89,6 @@ app.post("/check-connection", async (req, res) => {
     // Evolution API retorna: { state: "open" | "close" | "connecting" }
     const state = response.data?.state || response.data?.instance?.state;
     const connected = state === "open";
-    
-    console.log(`📱 Status WhatsApp [${instanceName}]:`, state);
     
     res.json({ 
       connected,

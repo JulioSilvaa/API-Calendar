@@ -65,7 +65,6 @@ export async function saveTokens(email, tokens) {
       tokens.expiry_date ? new Date(tokens.expiry_date) : null
     ]);
     
-    console.log(`✓ Tokens saved for user: ${email.substring(0, 3)}***`);
     return result.rows[0];
   } catch (error) {
     console.error('Error saving tokens:', error.message);
@@ -174,7 +173,6 @@ export async function deleteUserTokens(email) {
   try {
     const result = await pool.query(query, [email]);
     if (result.rows.length > 0) {
-      console.log(`✓ Tokens deleted for user: ${email.substring(0, 3)}***`);
       return true;
     }
     return false;

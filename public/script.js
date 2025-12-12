@@ -243,17 +243,6 @@ document.getElementById('company').addEventListener('blur', (e) => {
   }
 });
 
-// Remover estado de erro inicial do campo fullName (era apenas demonstração)
-document.addEventListener('DOMContentLoaded', () => {
-  const fullNameGroup = document.getElementById('fullName').closest('.form-group');
-  // Mantém a classe error apenas se o usuário não interagiu ainda
-  // Será removida quando o usuário começar a digitar
-  document.getElementById('fullName').addEventListener('input', function() {
-    if (this.value.trim() !== '') {
-      fullNameGroup.classList.remove('error');
-    }
-  }, { once: true });
-});
 
 // ========== VALIDAÇÃO DO BOTÃO DE SUBMIT ==========
 
@@ -406,8 +395,6 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
     }
   };
 
-  console.log('📤 Enviando dados completos para n8n:', payload);
-
   try {
     // Enviar para o webhook do n8n (rota /calendars)
     const res = await fetch('/calendars', { 
@@ -418,16 +405,50 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
     const data = await res.json();
 
     if (data.error || res.status >= 400) {
-      formStatus.textContent = data.error || data.details || 'Falha ao processar cadastro.';
+      // Formatar mensagem de erro baseada no tipo
+      let errorMessage = data.error || 'Erro ao processar cadastro';
+      let errorDetails = data.details || '';
+      
+      // Adicionar ícone baseado no tipo de erro
+      const errorIcons = {
+        'AUTH_EXPIRED': '🔒',
+        'PERMISSION_DENIED': '⛔',
+        'TIMEOUT': '⏱️',
+        'CONNECTION_ERROR': '🔌',
+        'N8N_WORKFLOW_ERROR': '⚙️',
+        'VALIDATION_ERROR': '📝',
+        'CLIENT_ERROR': '❌',
+        'UNKNOWN_ERROR': '⚠️'
+      };
+      
+      const icon = errorIcons[data.errorType] || '❌';
+      
+      // Exibir mensagem principal
+      formStatus.textContent = `${icon} ${errorMessage}`;
       formStatus.className = 'status err';
-      showToast(data.error || 'Erro ao processar cadastro', 'err');
+      
+      // Se houver detalhes, adicionar em uma segunda linha
+      if (errorDetails && errorDetails !== errorMessage) {
+        formStatus.innerHTML = `${icon} ${errorMessage}<br><small style="font-size: 0.9em; opacity: 0.9;">${errorDetails}</small>`;
+      }
+      
+      // Toast com mensagem resumida
+      showToast(`${icon} ${errorMessage}`, 'err');
+      
+      // Se for erro de autenticação, sugerir novo login
+      if (data.errorType === 'AUTH_EXPIRED') {
+        setTimeout(() => {
+          if (confirm('Sua sessão expirou. Deseja fazer login novamente?')) {
+            window.location.href = '/auth/google/initiate';
+          }
+        }, 2000);
+      }
+      
       console.error('❌ Erro na resposta:', data);
     } else {
       formStatus.textContent = 'Cadastro processado com sucesso!';
       formStatus.className = 'status ok';
       showToast('Cadastro criado com sucesso!', 'ok');
-
-      console.log('✅ Resposta do n8n:', data);
 
       // Se houver QR Code, redireciona
       const qrUrl = data.qrCodeUrl || data.qr_code || data.qrcode;
@@ -448,9 +469,19 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
     }
   } catch (err) {
     console.error('❌ Erro ao enviar:', err);
-    formStatus.textContent = 'Erro: ' + err.message;
+    
+    // Tratar erros de rede
+    let errorMessage = 'Erro de conexão';
+    let errorDetails = 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet.';
+    
+    if (err.name === 'TypeError' && err.message.includes('fetch')) {
+      errorMessage = 'Servidor indisponível';
+      errorDetails = 'O servidor não está respondendo. Tente novamente em alguns instantes.';
+    }
+    
+    formStatus.innerHTML = `🔌 ${errorMessage}<br><small style="font-size: 0.9em; opacity: 0.9;">${errorDetails}</small>`;
     formStatus.className = 'status err';
-    showToast(formStatus.textContent, 'err');
+    showToast(`🔌 ${errorMessage}`, 'err');
   } finally {
     submitBtn.disabled = false;
     submitBtn.classList.remove('btn-loading');

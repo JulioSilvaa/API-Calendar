@@ -41,8 +41,6 @@ router.get("/initiate", async (req, res) => {
   try {
     const redirectUri = resolveRedirectUri(req);
     const oauth2Client = getOAuthClient(redirectUri);
-    // Log seguro para diagnóstico de redirect_uri_mismatch
-    console.log("[OAuth] USING REDIRECT_URI =", redirectUri);
     const state = req.query.state || "";
     const url = oauth2Client.generateAuthUrl({
       access_type: "offline",
@@ -73,12 +71,6 @@ router.get("/callback", async (req, res) => {
   try {
     const redirectUri = resolveRedirectUri(req);
     const oauth2Client = getOAuthClient(redirectUri);
-    console.log(
-      "[OAuth callback] query =",
-      req.query,
-      "redirectUri =",
-      redirectUri
-    );
     const { tokens } = await oauth2Client.getToken({
       code,
       redirect_uri: redirectUri,

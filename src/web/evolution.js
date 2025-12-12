@@ -27,10 +27,6 @@ router.post("/create-instance", async (req, res) => {
     // Normalizar URL: remover /manager do final se existir
     const baseUrl = evolutionApiUrl.replace(/\/manager\/?$/, '');
     const instanceName = companyName;
-    
-    console.log(`[Evolution] Criando/conectando instância: ${instanceName}`);
-    console.log(`[Evolution] URL original: ${evolutionApiUrl}`);
-    console.log(`[Evolution] URL normalizada: ${baseUrl}`);
 
     let qrCodeData;
     
@@ -51,13 +47,10 @@ router.post("/create-instance", async (req, res) => {
           timeout: 15000
         }
       );
-
-      console.log(`[Evolution] Resposta create:`, createResponse.data);
       
       // Se a resposta já contém o QR Code
       if (createResponse.data.qrcode?.base64 || createResponse.data.base64) {
         qrCodeData = createResponse.data;
-        console.log(`[Evolution] QR Code obtido na criação`);
       } else {
         // Aguarda um pouco e busca via /instance/connect
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -73,14 +66,11 @@ router.post("/create-instance", async (req, res) => {
         );
         
         qrCodeData = connectResponse.data;
-        console.log(`[Evolution] QR Code obtido via connect`);
       }
       
     } catch (error) {
       // Se instância já existe (409), tenta apenas conectar
       if (error.response?.status === 409) {
-        console.log(`[Evolution] Instância já existe, obtendo QR Code...`);
-        
         const connectResponse = await axios.get(
           `${evolutionApiUrl}/instance/connect/${instanceName}`,
           {
@@ -92,7 +82,6 @@ router.post("/create-instance", async (req, res) => {
         );
         
         qrCodeData = connectResponse.data;
-        console.log(`[Evolution] QR Code obtido de instância existente`);
       } else {
         console.error(`[Evolution] Erro:`, error.response?.data || error.message);
         throw new Error(`Falha ao criar/conectar instância: ${error.response?.data?.message || error.message}`);
@@ -113,8 +102,6 @@ router.post("/create-instance", async (req, res) => {
         data: qrCodeData
       });
     }
-
-    console.log(`[Evolution] QR Code gerado com sucesso para: ${instanceName}`);
 
     res.status(201).json({
       message: "Instância criada com sucesso",

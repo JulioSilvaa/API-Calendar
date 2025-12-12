@@ -154,9 +154,8 @@
     (async () => {
       try {
         await fetch('/logout', { method: 'POST' });
-        console.log('✅ Logout realizado ao carregar página do QR Code');
       } catch (err) {
-        console.warn('⚠️ Erro ao fazer logout:', err);
+        // Silently fail
       }
     })();
 
@@ -233,7 +232,7 @@
             }, 3000);
           }
         } catch (e) {
-          console.log('Verificando conexão...');
+          // Silently continue checking
         }
       }, 4000);
     }
