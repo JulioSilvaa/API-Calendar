@@ -355,11 +355,19 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 
 document.getElementById('calForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  
+  // Coletar TODOS os dados do formulário
+  const fullName = document.getElementById('fullName').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const confirmEmail = document.getElementById('confirmEmail').value.trim();
+  const phone = document.getElementById('phone').value;
+  const documentValue = document.getElementById('document').value;
   const companyName = document.getElementById('company').value.trim();
+  const cep = document.getElementById('cep').value;
+  const timeZone = document.getElementById('tz').value;
+  
   const summary = companyName || 'Calendário do Cliente';
   document.getElementById('summary').value = summary;
-  const description = '';
-  const timeZone = document.getElementById('tz').value;
 
   const formStatus = document.getElementById('formStatus');
   const toast = document.getElementById('toast');
@@ -374,7 +382,7 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
     toast._hideTimer = setTimeout(() => toast.classList.remove('show'), 3500);
   };
 
-  formStatus.textContent = 'Enviando...';
+  formStatus.textContent = 'Enviando dados...';
   formStatus.className = 'status';
   formStatus.style.display = 'block';
   
@@ -383,43 +391,63 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
   btnSpinner.style.display = 'inline-block';
   btnText.textContent = 'Enviando...';
 
-  const body = { companyName };
+  // Preparar payload completo com TODOS os dados do formulário
+  const payload = {
+    fullName,
+    email,
+    phone,
+    document: documentValue,
+    companyName,
+    cep,
+    calendar: {
+      summary,
+      description: `Calendário de ${companyName}`,
+      timeZone
+    }
+  };
+
+  console.log('📤 Enviando dados completos para n8n:', payload);
+
   try {
-    const res = await fetch('/evolution/create-instance', { 
+    // Enviar para o webhook do n8n (rota /calendars)
+    const res = await fetch('/calendars', { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify(body) 
+      body: JSON.stringify(payload) 
     });
     const data = await res.json();
 
     if (data.error || res.status >= 400) {
-      formStatus.textContent = data.error || data.details || 'Falha ao criar instância.';
+      formStatus.textContent = data.error || data.details || 'Falha ao processar cadastro.';
       formStatus.className = 'status err';
-      showToast(data.error || 'Erro ao criar instância', 'err');
+      showToast(data.error || 'Erro ao processar cadastro', 'err');
+      console.error('❌ Erro na resposta:', data);
     } else {
-      formStatus.textContent = 'Instância criada com sucesso! Redirecionando...';
+      formStatus.textContent = 'Cadastro processado com sucesso!';
       formStatus.className = 'status ok';
-      showToast('Instância criada com sucesso!', 'ok');
+      showToast('Cadastro criado com sucesso!', 'ok');
 
-      // Redireciona para página do QR Code
-      const qrUrl = data.qrCodeUrl;
+      console.log('✅ Resposta do n8n:', data);
+
+      // Se houver QR Code, redireciona
+      const qrUrl = data.qrCodeUrl || data.qr_code || data.qrcode;
       
       if (qrUrl) {
+        formStatus.textContent += ' Redirecionando...';
         setTimeout(() => {
           const params = new URLSearchParams({
             qr: qrUrl,
             company: companyName
           });
           window.location.href = `/qrcode.html?${params.toString()}`;
-        }, 1000);
+        }, 1500);
       } else {
-        formStatus.textContent = 'Erro: QR Code não foi gerado';
-        formStatus.className = 'status err';
+        // Se não houver QR Code, apenas mostra sucesso
+        formStatus.textContent = 'Cadastro criado com sucesso! Você receberá instruções por email.';
       }
     }
-
-    console.log('Resposta /evolution/create-instance:', data);
   } catch (err) {
+    console.error('❌ Erro ao enviar:', err);
     formStatus.textContent = 'Erro: ' + err.message;
     formStatus.className = 'status err';
     showToast(formStatus.textContent, 'err');
