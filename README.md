@@ -94,6 +94,12 @@ docker compose logs -f api-calendar
 docker compose --profile dev down
 ```
 
+**Características do modo desenvolvimento**:
+- ✅ Hot reload habilitado (mudanças no código refletem automaticamente)
+- ✅ Informações de debug disponíveis
+- ✅ Volumes montados para `src/` e `public/`
+- ✅ `NODE_ENV=development`
+
 ### Produção
 ```bash
 # Iniciar em modo produção
@@ -102,6 +108,20 @@ docker compose --profile prod up -d
 # Parar
 docker compose --profile prod down
 ```
+
+**Características do modo produção**:
+- ✅ Código otimizado e minificado
+- ✅ Sem volumes de código fonte (código empacotado no container)
+- ✅ Restart automático sempre (`restart: always`)
+- ✅ Debug info desabilitado para segurança
+- ✅ `NODE_ENV=production`
+
+### Banco de Dados PostgreSQL
+
+O PostgreSQL está disponível em ambos os perfis:
+- **Porta**: 5432 (exposta para acesso externo)
+- **Ferramentas**: Pode ser acessado via pgAdmin, DBeaver, etc.
+- **Dados**: Persistidos no volume `postgres_data`
 
 A aplicação estará disponível em: **http://localhost:3000**
 
