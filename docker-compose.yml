@@ -5,6 +5,8 @@ services:
     image: postgres:16-alpine
     container_name: api-calendar-db
     restart: unless-stopped
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_DB: ${DB_NAME:-api_calendar}
       POSTGRES_USER: ${DB_USER:-api_calendar_user}
