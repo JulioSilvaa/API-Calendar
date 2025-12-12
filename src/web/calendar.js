@@ -101,12 +101,6 @@ router.post("/", async (req, res) => {
       }
     }
 
-    // Preparar payload completo com TODOS os dados do formulário
-    // Limpar dados: remover caracteres especiais, manter apenas números
-    const cleanPhone = phone ? phone.replace(/\D/g, '') : null;
-    const cleanDocument = document ? document.replace(/\D/g, '') : null;
-    const cleanCep = cep ? cep.replace(/\D/g, '') : null;
-    
     const calendarWithCompany = { ...calendar, companyName };
     const payload = {
       email: formEmail, // Email do formulário (pode ser diferente do autenticado)
@@ -121,16 +115,6 @@ router.post("/", async (req, res) => {
       cep: cleanCep,
       hitempEmail: process.env.HITEMP_EMAIL || null,
     };
-
-    console.log('📤 Enviando dados completos para n8n:', {
-      authenticatedEmail,
-      formEmail,
-      companyName,
-      fullName,
-      phone: cleanPhone ? '***' + cleanPhone.slice(-4) : null,
-      document: cleanDocument ? '***' + cleanDocument.slice(-4) : null,
-      cep: cleanCep
-    });
 
     const webhookUrl = process.env.N8N_WEBHOOK_URL;
     if (!webhookUrl)
@@ -196,8 +180,6 @@ router.post("/", async (req, res) => {
     const raw = response?.data || {};
     const calendarId = raw.calendarId || raw.id || raw?.calendar?.id || null;
 
-    console.log('✅ Calendário criado com sucesso:', calendarId);
-
     // Após criar o calendário, gerar QR Code via Evolution API
     let qrCodeUrl = null;
     const evolutionApiUrl = process.env.EVOLUTION_API_URL;
@@ -205,9 +187,6 @@ router.post("/", async (req, res) => {
 
     if (evolutionApiUrl && evolutionApiKey && companyName) {
       try {
-        console.log(`[Evolution] Criando/conectando instância: ${companyName}`);
-        console.log(`[Evolution] URL: ${evolutionApiUrl}`);
-        
         let qrCodeData;
         
         // Criar ou reconectar instância
@@ -227,13 +206,10 @@ router.post("/", async (req, res) => {
               timeout: 15000
             }
           );
-
-          console.log(`[Evolution] Resposta create:`, createResponse.data);
           
           // Se a resposta já contém o QR Code
           if (createResponse.data.qrcode?.base64 || createResponse.data.base64) {
             qrCodeData = createResponse.data;
-            console.log(`[Evolution] QR Code obtido na criação`);
           } else {
             // Aguarda um pouco e busca via /instance/connect
             await new Promise(resolve => setTimeout(resolve, 2000));
@@ -249,7 +225,6 @@ router.post("/", async (req, res) => {
             );
             
             qrCodeData = connectResponse.data;
-            console.log(`[Evolution] QR Code obtido via connect`);
           }
           
         } catch (error) {
@@ -261,8 +236,6 @@ router.post("/", async (req, res) => {
                                   JSON.stringify(error.response?.data).includes('already in use'));
           
           if (isAlreadyExists) {
-            console.log(`[Evolution] Instância já existe, obtendo QR Code...`);
-            
             const connectResponse = await axios.get(
               `${evolutionApiUrl}/instance/connect/${companyName}`,
               {
@@ -274,7 +247,6 @@ router.post("/", async (req, res) => {
             );
             
             qrCodeData = connectResponse.data;
-            console.log(`[Evolution] QR Code obtido de instância existente`);
           } else {
             throw error;
           }
@@ -291,7 +263,6 @@ router.post("/", async (req, res) => {
           qrCodeUrl = qrBase64.startsWith('data:') 
             ? qrBase64 
             : `data:image/png;base64,${qrBase64}`;
-          console.log(`[Evolution] QR Code gerado com sucesso para: ${companyName}`);
         } else {
           console.error('[Evolution] QR Code não encontrado na resposta:', qrCodeData);
         }
@@ -317,11 +288,83 @@ router.post("/", async (req, res) => {
       n8n: raw,
     });
   } catch (err) {
-    console.error(err?.response?.data || err.message);
+    console.error('❌ Erro ao criar calendário:', {
+      message: err.message,
+      status: err?.response?.status,
+      data: err?.response?.data
+    });
+    
     const status = err?.response?.status || 500;
+    const errorData = err?.response?.data || {};
+    
+    // Categorizar e formatar erros de forma mais amigável
+    let userMessage = "Falha ao criar calendário";
+    let errorDetails = err.message;
+    let errorType = "UNKNOWN_ERROR";
+    
+    // Erros de autenticação (401)
+    if (status === 401) {
+      userMessage = "Sessão expirada";
+      errorDetails = "Sua sessão com o Google expirou. Por favor, faça login novamente.";
+      errorType = "AUTH_EXPIRED";
+    }
+    // Erros de permissão (403)
+    else if (status === 403) {
+      userMessage = "Permissão negada";
+      errorDetails = "Você não tem permissão para criar calendários. Verifique as permissões da sua conta Google.";
+      errorType = "PERMISSION_DENIED";
+    }
+    // Erros de timeout
+    else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+      userMessage = "Tempo esgotado";
+      errorDetails = "O servidor n8n não respondeu a tempo. Tente novamente em alguns instantes.";
+      errorType = "TIMEOUT";
+    }
+    // Erros de conexão
+    else if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+      userMessage = "Erro de conexão";
+      errorDetails = "Não foi possível conectar ao servidor n8n. Verifique se o serviço está ativo.";
+      errorType = "CONNECTION_ERROR";
+    }
+    // Erros do n8n workflow (500)
+    else if (status >= 500) {
+      userMessage = "Erro no servidor n8n";
+      
+      // Tentar extrair mensagem de erro do n8n
+      const n8nError = errorData?.message || 
+                      errorData?.error?.message || 
+                      errorData?.errorDetails?.message ||
+                      "O workflow do n8n encontrou um erro ao processar sua solicitação.";
+      
+      errorDetails = n8nError;
+      errorType = "N8N_WORKFLOW_ERROR";
+    }
+    // Erros de validação (400)
+    else if (status === 400) {
+      userMessage = "Dados inválidos";
+      errorDetails = errorData?.message || errorData?.error || "Os dados enviados são inválidos. Verifique o formulário.";
+      errorType = "VALIDATION_ERROR";
+    }
+    // Outros erros HTTP
+    else if (status >= 400 && status < 500) {
+      userMessage = `Erro ${status}`;
+      errorDetails = errorData?.message || errorData?.error || err.message;
+      errorType = "CLIENT_ERROR";
+    }
+    
     res.status(status).json({
-      error: "Falha ao criar calendário via n8n",
-      details: err?.response?.data || err.message,
+      error: userMessage,
+      details: errorDetails,
+      errorType,
+      status,
+      // Informações técnicas para debugging (apenas em desenvolvimento)
+      ...(process.env.NODE_ENV !== 'production' && {
+        debug: {
+          originalError: err.message,
+          responseData: errorData,
+          stack: err.stack?.split('\n').slice(0, 3)
+        }
+      })
     });
   }
 });
