@@ -150,6 +150,16 @@
   </div>
 
   <script>
+    // Fazer logout automaticamente ao carregar a página
+    (async () => {
+      try {
+        await fetch('/logout', { method: 'POST' });
+        console.log('✅ Logout realizado ao carregar página do QR Code');
+      } catch (err) {
+        console.warn('⚠️ Erro ao fazer logout:', err);
+      }
+    })();
+
     // Obter dados da URL
     const urlParams = new URLSearchParams(window.location.search);
     const qrCodeUrl = urlParams.get('qr');
