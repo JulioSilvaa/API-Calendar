@@ -1,6 +1,17 @@
 node_modules/
 .env
 .env.local
+.env.production
 npm-debug.log*
 data/
 docs/
+
+# Security files
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Database backups
+*.sql.backup
+*.dump
