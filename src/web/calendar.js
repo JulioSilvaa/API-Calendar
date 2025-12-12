@@ -10,15 +10,18 @@ const router = express.Router();
 
 router.post("/", async (req, res) => {
   try {
-    const { calendar } = req.body || {};
+    const { calendar, fullName, email: emailFromForm, phone, document, cep } = req.body || {};
     const rawCompany =
       (req.body && (req.body.companyName ?? req.body?.calendar?.companyName)) ||
       "";
     const companyName = String(rawCompany).trim();
-    // campo whatsapp removido do formulário; não precisamos extrair nem enviar
-    const emailFromBody = req.body?.email;
-    const emailFromCookie = req.cookies?.user_email;
-    const email = emailFromBody || emailFromCookie;
+    
+    // Email autenticado (do cookie) - usado para buscar tokens OAuth
+    const authenticatedEmail = req.cookies?.user_email;
+    
+    // Email do formulário - enviado como dado adicional para o n8n
+    const formEmail = emailFromForm || authenticatedEmail;
+    
     if (!calendar || !calendar.summary) {
       return res.status(400).json({
         error: "Parâmetros inválidos: calendar.summary é obrigatório",
@@ -29,13 +32,14 @@ router.post("/", async (req, res) => {
         error: "Parâmetros inválidos: companyName é obrigatório",
       });
     }
-    // whatsapp é opcional agora; pode ficar vazio ou ausente
-    if (!email) {
+    if (!authenticatedEmail) {
       return res.status(401).json({
         error: "Usuário não autenticado. Faça login com Google primeiro.",
       });
     }
-    let tokens = await getUserTokens(email);
+    
+    // Buscar tokens usando o email autenticado (do Google OAuth)
+    let tokens = await getUserTokens(authenticatedEmail);
     if (!tokens || (!tokens.access_token && !tokens.refresh_token)) {
       return res.status(404).json({
         error: "Tokens do usuário não encontrados. Faça o OAuth primeiro.",
@@ -82,7 +86,7 @@ router.post("/", async (req, res) => {
             .json({ error: "Falha ao renovar access_token. Refaça o login." });
         }
         const expiry_date = Date.now() + Number(expires_in || 0) * 1000;
-        tokens = await upsertUserTokens(email, {
+        tokens = await upsertUserTokens(authenticatedEmail, {
           ...tokens,
           access_token,
           expiry_date,
@@ -97,31 +101,42 @@ router.post("/", async (req, res) => {
       }
     }
 
-    // Envia tokens completos ao n8n (sem sanitização)
-    // Espelha companyName dentro de calendar para facilitar expressões no n8n
+    // Preparar payload completo com TODOS os dados do formulário
+    // Limpar dados: remover caracteres especiais, manter apenas números
+    const cleanPhone = phone ? phone.replace(/\D/g, '') : null;
+    const cleanDocument = document ? document.replace(/\D/g, '') : null;
+    const cleanCep = cep ? cep.replace(/\D/g, '') : null;
+    
     const calendarWithCompany = { ...calendar, companyName };
     const payload = {
-      email,
+      email: formEmail, // Email do formulário (pode ser diferente do autenticado)
+      authenticatedEmail, // Email usado para autenticação OAuth
       tokens,
       calendar: calendarWithCompany,
       companyName,
+      // Dados adicionais do formulário (limpos, apenas números)
+      fullName: fullName || null,
+      phone: cleanPhone,
+      document: cleanDocument,
+      cep: cleanCep,
       hitempEmail: process.env.HITEMP_EMAIL || null,
     };
+
+    console.log('📤 Enviando dados completos para n8n:', {
+      authenticatedEmail,
+      formEmail,
+      companyName,
+      fullName,
+      phone: cleanPhone ? '***' + cleanPhone.slice(-4) : null,
+      document: cleanDocument ? '***' + cleanDocument.slice(-4) : null,
+      cep: cleanCep
+    });
 
     const webhookUrl = process.env.N8N_WEBHOOK_URL;
     if (!webhookUrl)
       return res.status(500).json({ error: "N8N_WEBHOOK_URL não configurado" });
 
     const headers = { "Content-Type": "application/json" };
-
-    // Log de depuração (temporário): verifique no console da API
-    console.log("[calendars] Enviando ao n8n:", {
-      email,
-      hasCompanyName: Boolean(companyName),
-      companyName,
-      calendarHasCompany: Boolean(calendarWithCompany?.companyName),
-      calendarSummary: calendarWithCompany?.summary,
-    });
 
     let response;
     try {
@@ -179,20 +194,123 @@ router.post("/", async (req, res) => {
     }
     // Normaliza saída para o frontend exibir QR com facilidade
     const raw = response?.data || {};
-    const qrCodeUrl =
-      raw.qrCodeUrl ||
-      raw.qr_code ||
-      raw.qrcode ||
-      raw.qr ||
-      raw?.data?.qrCodeUrl ||
-      null;
-    const statusText = raw.status || raw?.data?.status || null;
     const calendarId = raw.calendarId || raw.id || raw?.calendar?.id || null;
 
-    // Mantém payload bruto do n8n em "n8n" para depuração, mas expõe campos úteis na raiz
+    console.log('✅ Calendário criado com sucesso:', calendarId);
+
+    // Após criar o calendário, gerar QR Code via Evolution API
+    let qrCodeUrl = null;
+    const evolutionApiUrl = process.env.EVOLUTION_API_URL;
+    const evolutionApiKey = process.env.EVOLUTION_API_KEY;
+
+    if (evolutionApiUrl && evolutionApiKey && companyName) {
+      try {
+        console.log(`[Evolution] Criando/conectando instância: ${companyName}`);
+        console.log(`[Evolution] URL: ${evolutionApiUrl}`);
+        
+        let qrCodeData;
+        
+        // Criar ou reconectar instância
+        try {
+          const createResponse = await axios.post(
+            `${evolutionApiUrl}/instance/create`,
+            {
+              instanceName: companyName,
+              qrcode: true,
+              integration: "WHATSAPP-BAILEYS"
+            },
+            {
+              headers: {
+                "apikey": evolutionApiKey,
+                "Content-Type": "application/json"
+              },
+              timeout: 15000
+            }
+          );
+
+          console.log(`[Evolution] Resposta create:`, createResponse.data);
+          
+          // Se a resposta já contém o QR Code
+          if (createResponse.data.qrcode?.base64 || createResponse.data.base64) {
+            qrCodeData = createResponse.data;
+            console.log(`[Evolution] QR Code obtido na criação`);
+          } else {
+            // Aguarda um pouco e busca via /instance/connect
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            const connectResponse = await axios.get(
+              `${evolutionApiUrl}/instance/connect/${companyName}`,
+              {
+                headers: {
+                  "apikey": evolutionApiKey
+                },
+                timeout: 10000
+              }
+            );
+            
+            qrCodeData = connectResponse.data;
+            console.log(`[Evolution] QR Code obtido via connect`);
+          }
+          
+        } catch (error) {
+          console.error(`[Evolution] Erro:`, error.response?.data || error.message);
+          
+          // Se instância já existe (409 ou 403 com mensagem "already in use"), tenta apenas conectar
+          const isAlreadyExists = error.response?.status === 409 || 
+                                 (error.response?.status === 403 && 
+                                  JSON.stringify(error.response?.data).includes('already in use'));
+          
+          if (isAlreadyExists) {
+            console.log(`[Evolution] Instância já existe, obtendo QR Code...`);
+            
+            const connectResponse = await axios.get(
+              `${evolutionApiUrl}/instance/connect/${companyName}`,
+              {
+                headers: {
+                  "apikey": evolutionApiKey
+                },
+                timeout: 10000
+              }
+            );
+            
+            qrCodeData = connectResponse.data;
+            console.log(`[Evolution] QR Code obtido de instância existente`);
+          } else {
+            throw error;
+          }
+        }
+
+        // Extrair QR Code da resposta
+        const qrBase64 = qrCodeData.base64 || 
+                        qrCodeData.qrcode?.base64 || 
+                        qrCodeData.code || 
+                        qrCodeData.qr ||
+                        qrCodeData.pairingCode;
+
+        if (qrBase64) {
+          qrCodeUrl = qrBase64.startsWith('data:') 
+            ? qrBase64 
+            : `data:image/png;base64,${qrBase64}`;
+          console.log(`[Evolution] QR Code gerado com sucesso para: ${companyName}`);
+        } else {
+          console.error('[Evolution] QR Code não encontrado na resposta:', qrCodeData);
+        }
+      } catch (evolutionError) {
+        console.error('❌ Erro ao gerar QR Code via Evolution API:', {
+          message: evolutionError.message,
+          status: evolutionError.response?.status,
+          data: evolutionError.response?.data
+        });
+        // Não falha a requisição, apenas não retorna QR Code
+      }
+    } else {
+      console.warn('⚠️ Evolution API não configurada (EVOLUTION_API_URL ou EVOLUTION_API_KEY ausente)');
+    }
+
+    // Retorna resposta completa para o frontend
     res.status(201).json({
-      message: raw.message || "Calendário processado",
-      status: statusText,
+      message: raw.message || "Calendário criado com sucesso",
+      status: "success",
       qrCodeUrl,
       calendarId,
       companyName,
