@@ -44,7 +44,8 @@ O usuário preenche:
 - Telefone
 - CPF/CNPJ
 - Nome da empresa
-- CEP
+- CEP (com busca automática de endereço)
+- Número e complemento (após busca do CEP)
 
 ### 3. Processamento
 1. Dados são enviados para o **n8n**
@@ -148,6 +149,20 @@ A aplicação estará disponível em: **http://localhost:3000**
 - Validação em tempo real
 - Feedback visual de ações
 - Máscaras para campos (telefone, CPF, CEP)
+- **Busca automática de endereço por CEP** via ViaCEP API
+- Campos de endereço revelados progressivamente
+
+### ✅ Busca Automática de Endereço (Novo!)
+Quando o usuário digita um CEP válido:
+1. Sistema busca automaticamente na **API ViaCEP**
+2. Campos de endereço são **revelados dinamicamente**
+3. Dados preenchidos automaticamente:
+   - Rua/Avenida
+   - Bairro
+   - Cidade
+   - Estado
+4. Usuário completa apenas **número** e **complemento** (opcional)
+5. Endereço completo enviado estruturado para o n8n
 
 ## 🔄 Fluxo de Dados
 
@@ -179,7 +194,15 @@ A aplicação estará disponível em: **http://localhost:3000**
   "phone": "11999999999",
   "document": "12345678900",
   "companyName": "Empresa XYZ",
-  "cep": "12345678",
+  "address": {
+    "cep": "01310-100",
+    "street": "Avenida Paulista",
+    "number": "1578",
+    "complement": "Sala 101",
+    "neighborhood": "Bela Vista",
+    "city": "São Paulo",
+    "state": "SP"
+  },
   "calendar": {
     "summary": "Calendário Empresa XYZ",
     "timeZone": "America/Sao_Paulo"
@@ -195,6 +218,8 @@ A aplicação estará disponível em: **http://localhost:3000**
 - Autenticação Google integrada
 - Validação em tempo real
 - Feedback visual de erros
+- **Busca automática de endereço** ao digitar CEP
+- Campos de endereço exibidos dinamicamente
 
 ### Página QR Code
 - Exibição do QR Code
@@ -226,6 +251,7 @@ A aplicação estará disponível em: **http://localhost:3000**
 - **Automação Completa** - n8n orquestra todo o fluxo
 - **Multi-instância** - Suporta múltiplas empresas
 - **Sanitização de Dados** - Limpeza automática de campos
+- **Busca de CEP Integrada** - Preenchimento automático via ViaCEP
 - **Logs Detalhados** - Rastreamento completo de operações
 
 ## 📦 Estrutura do Projeto
@@ -265,3 +291,4 @@ MIT - Sinta-se livre para usar este projeto!
 ---
 
 **Desenvolvido com ❤️ usando Node.js, n8n e Evolution API**
+

@@ -1,6 +1,3 @@
-// ========== MÁSCARAS DE FORMATAÇÃO ==========
-
-// Máscara de Celular: (00) 00000-0000
 const phoneMask = (value) => {
   return value
     .replace(/\D/g, '')
@@ -9,18 +6,15 @@ const phoneMask = (value) => {
     .replace(/(-\d{4})\d+?$/, '$1');
 };
 
-// Máscara de CPF/CNPJ
 const documentMask = (value) => {
   value = value.replace(/\D/g, '');
   
   if (value.length <= 11) {
-    // CPF: 000.000.000-00
     return value
       .replace(/(\d{3})(\d)/, '$1.$2')
       .replace(/(\d{3})(\d)/, '$1.$2')
       .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
   } else {
-    // CNPJ: 00.000.000/0000-00
     return value
       .replace(/^(\d{2})(\d)/, '$1.$2')
       .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
@@ -30,7 +24,6 @@ const documentMask = (value) => {
   }
 };
 
-// Máscara de CEP: 00000-000
 const cepMask = (value) => {
   return value
     .replace(/\D/g, '')
@@ -38,9 +31,6 @@ const cepMask = (value) => {
     .replace(/(-\d{3})\d+?$/, '$1');
 };
 
-// ========== VALIDAÇÕES ==========
-
-// Validar CPF
 const validateCPF = (cpf) => {
   cpf = cpf.replace(/\D/g, '');
   if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
@@ -60,7 +50,6 @@ const validateCPF = (cpf) => {
   return true;
 };
 
-// Validar CNPJ
 const validateCNPJ = (cnpj) => {
   cnpj = cnpj.replace(/\D/g, '');
   if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
@@ -95,31 +84,25 @@ const validateCNPJ = (cnpj) => {
   return true;
 };
 
-// Validar e-mail
 const validateEmail = (email) => {
   const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return re.test(email);
 };
 
-// Validar nome completo (mínimo 2 palavras)
 const validateFullName = (name) => {
   const words = name.trim().split(/\s+/);
   return words.length >= 2 && words.every(word => word.length >= 2);
 };
 
-// Validar telefone (11 dígitos)
 const validatePhone = (phone) => {
   const digits = phone.replace(/\D/g, '');
   return digits.length === 11;
 };
 
-// Validar CEP (8 dígitos)
 const validateCEP = (cep) => {
   const digits = cep.replace(/\D/g, '');
   return digits.length === 8;
 };
-
-// ========== APLICAR MÁSCARAS NOS INPUTS ==========
 
 const phoneInput = document.getElementById('phone');
 const documentInput = document.getElementById('document');
@@ -137,8 +120,6 @@ cepInput.addEventListener('input', (e) => {
   e.target.value = cepMask(e.target.value);
 });
 
-// ========== VALIDAÇÃO EM TEMPO REAL ==========
-
 const setFieldState = (fieldId, isValid, errorMessage = '') => {
   const field = document.getElementById(fieldId);
   const formGroup = field.closest('.form-group');
@@ -147,7 +128,6 @@ const setFieldState = (fieldId, isValid, errorMessage = '') => {
   formGroup.classList.remove('error', 'success');
   
   if (field.value.trim() === '') {
-    // Campo vazio - sem validação
     if (errorDiv) errorDiv.textContent = '';
     return;
   }
@@ -161,7 +141,6 @@ const setFieldState = (fieldId, isValid, errorMessage = '') => {
   }
 };
 
-// Validação do Nome Completo
 document.getElementById('fullName').addEventListener('blur', (e) => {
   const value = e.target.value.trim();
   if (value) {
@@ -170,14 +149,12 @@ document.getElementById('fullName').addEventListener('blur', (e) => {
   }
 });
 
-// Validação do E-mail
 document.getElementById('email').addEventListener('blur', (e) => {
   const value = e.target.value.trim();
   if (value) {
     const isValid = validateEmail(value);
     setFieldState('email', isValid, 'E-mail inválido');
     
-    // Revalidar confirmação se já foi preenchida
     const confirmEmail = document.getElementById('confirmEmail');
     if (confirmEmail.value) {
       confirmEmail.dispatchEvent(new Event('blur'));
@@ -185,7 +162,6 @@ document.getElementById('email').addEventListener('blur', (e) => {
   }
 });
 
-// Validação do Confirme o E-mail
 document.getElementById('confirmEmail').addEventListener('blur', (e) => {
   const value = e.target.value.trim();
   const email = document.getElementById('email').value.trim();
@@ -195,7 +171,6 @@ document.getElementById('confirmEmail').addEventListener('blur', (e) => {
   }
 });
 
-// Validação do Celular
 phoneInput.addEventListener('blur', (e) => {
   const value = e.target.value;
   if (value) {
@@ -204,7 +179,6 @@ phoneInput.addEventListener('blur', (e) => {
   }
 });
 
-// Validação do CPF/CNPJ
 documentInput.addEventListener('blur', (e) => {
   const value = e.target.value;
   const digits = value.replace(/\D/g, '');
@@ -225,16 +199,82 @@ documentInput.addEventListener('blur', (e) => {
   }
 });
 
-// Validação do CEP
-cepInput.addEventListener('blur', (e) => {
+cepInput.addEventListener('blur', async (e) => {
   const value = e.target.value;
   if (value) {
     const isValid = validateCEP(value);
-    setFieldState('cep', isValid, 'CEP inválido (8 dígitos)');
+    if (isValid) {
+      // Buscar endereço na API ViaCEP
+      await fetchAddressByCEP(value);
+    } else {
+      setFieldState('cep', false, 'CEP inválido (8 dígitos)');
+    }
   }
 });
 
-// Validação do Nome da Empresa
+const fetchAddressByCEP = async (cep) => {
+  const cleanCEP = cep.replace(/\D/g, '');
+  
+  const cepFormGroup = document.getElementById('cep').closest('.form-group');
+  const cepErrorDiv = cepFormGroup.querySelector('.error-message');
+  cepErrorDiv.textContent = 'Buscando endereço...';
+  cepErrorDiv.style.color = '#666';
+  
+  try {
+    const response = await fetch(`https://viacep.com.br/ws/${cleanCEP}/json/`);
+    const data = await response.json();
+    
+    if (data.erro) {
+      setFieldState('cep', false, 'CEP não encontrado');
+      clearAddressFields();
+      hideAddressFields();
+      return;
+    }
+    
+    document.getElementById('street').value = data.logradouro || '';
+    document.getElementById('neighborhood').value = data.bairro || '';
+    document.getElementById('city').value = data.localidade || '';
+    document.getElementById('state').value = data.uf || '';
+    
+    setFieldState('cep', true);
+    cepErrorDiv.textContent = '';
+    cepErrorDiv.style.color = '';
+    
+    showAddressFields();
+    
+    document.getElementById('number').focus();
+    
+  } catch (error) {
+    console.error('Erro ao buscar CEP:', error);
+    setFieldState('cep', false, 'Erro ao buscar CEP. Tente novamente.');
+    clearAddressFields();
+    hideAddressFields();
+  }
+};
+
+const showAddressFields = () => {
+  document.getElementById('streetRow').classList.remove('hidden');
+  document.getElementById('numberRow').classList.remove('hidden');
+  document.getElementById('cityRow').classList.remove('hidden');
+  document.getElementById('stateRow').classList.remove('hidden');
+};
+
+const hideAddressFields = () => {
+  document.getElementById('streetRow').classList.add('hidden');
+  document.getElementById('numberRow').classList.add('hidden');
+  document.getElementById('cityRow').classList.add('hidden');
+  document.getElementById('stateRow').classList.add('hidden');
+};
+
+const clearAddressFields = () => {
+  document.getElementById('street').value = '';
+  document.getElementById('neighborhood').value = '';
+  document.getElementById('city').value = '';
+  document.getElementById('state').value = '';
+  document.getElementById('number').value = '';
+  document.getElementById('complement').value = '';
+};
+
 document.getElementById('company').addEventListener('blur', (e) => {
   const value = e.target.value.trim();
   if (value) {
@@ -244,11 +284,8 @@ document.getElementById('company').addEventListener('blur', (e) => {
 });
 
 
-// ========== VALIDAÇÃO DO BOTÃO DE SUBMIT ==========
-
 let isUserLoggedIn = false;
 
-// Função para verificar se todos os campos estão válidos
 const checkFormValidity = () => {
   const fullName = document.getElementById('fullName').value.trim();
   const email = document.getElementById('email').value.trim();
@@ -257,15 +294,19 @@ const checkFormValidity = () => {
   const documentValue = document.getElementById('document').value;
   const company = document.getElementById('company').value.trim();
   const cep = document.getElementById('cep').value;
+  const street = document.getElementById('street').value.trim();
+  const neighborhood = document.getElementById('neighborhood').value.trim();
+  const city = document.getElementById('city').value.trim();
+  const state = document.getElementById('state').value.trim();
+  const number = document.getElementById('number').value.trim();
   
-  // Verificar se todos os campos estão preenchidos
-  const allFieldsFilled = fullName && email && confirmEmail && phone && documentValue && company && cep;
+  const allFieldsFilled = fullName && email && confirmEmail && phone && documentValue && 
+                          company && cep && street && neighborhood && city && state && number;
   
   if (!allFieldsFilled) {
     return false;
   }
   
-  // Verificar se todos os campos são válidos
   const isFullNameValid = validateFullName(fullName);
   const isEmailValid = validateEmail(email);
   const isConfirmEmailValid = email === confirmEmail && validateEmail(confirmEmail);
@@ -281,19 +322,18 @@ const checkFormValidity = () => {
   
   const isCepValid = validateCEP(cep);
   const isCompanyValid = company.length >= 3;
+  const isNumberValid = number.length >= 1;
   
   const allValid = isFullNameValid && isEmailValid && isConfirmEmailValid && 
-         isPhoneValid && isDocumentValid && isCepValid && isCompanyValid;
+         isPhoneValid && isDocumentValid && isCepValid && isCompanyValid && isNumberValid;
   
   return allValid;
 };
 
-// Função para atualizar o estado do botão
 const updateSubmitButton = () => {
   const submitBtn = document.getElementById('submitBtn');
   const isFormValid = checkFormValidity();
   
-  // Botão só fica habilitado se o formulário estiver válido E o usuário estiver logado
   if (isFormValid && isUserLoggedIn) {
     submitBtn.disabled = false;
   } else {
@@ -301,8 +341,7 @@ const updateSubmitButton = () => {
   }
 };
 
-// Adicionar listeners em todos os campos para verificar em tempo real
-const formInputs = ['fullName', 'email', 'confirmEmail', 'phone', 'document', 'company', 'cep'];
+const formInputs = ['fullName', 'email', 'confirmEmail', 'phone', 'document', 'company', 'cep', 'street', 'neighborhood', 'city', 'state', 'number', 'complement'];
 
 formInputs.forEach(fieldId => {
   const field = document.getElementById(fieldId);
@@ -310,17 +349,13 @@ formInputs.forEach(fieldId => {
   field.addEventListener('blur', updateSubmitButton);
 });
 
-// Inicializar botão como desabilitado
 document.getElementById('submitBtn').disabled = true;
-
-// ========== AUTENTICAÇÃO E FORMULÁRIO ==========
 
 async function fetchMe() {
   const res = await fetch('/me');
   const data = await res.json();
   const logged = !!data.email;
   
-  // Atualizar estado de login global
   isUserLoggedIn = logged;
   
   document.getElementById('not-logged').classList.toggle('hidden', logged);
@@ -328,7 +363,6 @@ async function fetchMe() {
   document.getElementById('logged').classList.toggle('hidden', !logged);
   if (logged) document.getElementById('userEmail').textContent = data.email;
   
-  // Atualizar estado do botão quando o status de login mudar
   updateSubmitButton();
 }
 
@@ -345,7 +379,6 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 document.getElementById('calForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   
-  // Coletar TODOS os dados do formulário
   const fullName = document.getElementById('fullName').value.trim();
   const email = document.getElementById('email').value.trim();
   const confirmEmail = document.getElementById('confirmEmail').value.trim();
@@ -353,6 +386,12 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
   const documentValue = document.getElementById('document').value;
   const companyName = document.getElementById('company').value.trim();
   const cep = document.getElementById('cep').value;
+  const street = document.getElementById('street').value.trim();
+  const neighborhood = document.getElementById('neighborhood').value.trim();
+  const city = document.getElementById('city').value.trim();
+  const state = document.getElementById('state').value.trim();
+  const number = document.getElementById('number').value.trim();
+  const complement = document.getElementById('complement').value.trim();
   const timeZone = document.getElementById('tz').value;
   
   const summary = companyName || 'Calendário do Cliente';
@@ -380,14 +419,21 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
   btnSpinner.style.display = 'inline-block';
   btnText.textContent = 'Enviando...';
 
-  // Preparar payload completo com TODOS os dados do formulário
   const payload = {
     fullName,
     email,
     phone,
     document: documentValue,
     companyName,
-    cep,
+    address: {
+      cep,
+      street,
+      number,
+      complement: complement || '',
+      neighborhood,
+      city,
+      state
+    },
     calendar: {
       summary,
       description: `Calendário de ${companyName}`,
@@ -396,7 +442,6 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
   };
 
   try {
-    // Enviar para o webhook do n8n (rota /calendars)
     const res = await fetch('/calendars', { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' }, 
@@ -405,11 +450,9 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
     const data = await res.json();
 
     if (data.error || res.status >= 400) {
-      // Formatar mensagem de erro baseada no tipo
       let errorMessage = data.error || 'Erro ao processar cadastro';
       let errorDetails = data.details || '';
       
-      // Adicionar ícone baseado no tipo de erro
       const errorIcons = {
         'AUTH_EXPIRED': '🔒',
         'PERMISSION_DENIED': '⛔',
@@ -423,19 +466,15 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
       
       const icon = errorIcons[data.errorType] || '❌';
       
-      // Exibir mensagem principal
       formStatus.textContent = `${icon} ${errorMessage}`;
       formStatus.className = 'status err';
       
-      // Se houver detalhes, adicionar em uma segunda linha
       if (errorDetails && errorDetails !== errorMessage) {
         formStatus.innerHTML = `${icon} ${errorMessage}<br><small style="font-size: 0.9em; opacity: 0.9;">${errorDetails}</small>`;
       }
       
-      // Toast com mensagem resumida
       showToast(`${icon} ${errorMessage}`, 'err');
       
-      // Se for erro de autenticação, sugerir novo login
       if (data.errorType === 'AUTH_EXPIRED') {
         setTimeout(() => {
           if (confirm('Sua sessão expirou. Deseja fazer login novamente?')) {
@@ -450,7 +489,6 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
       formStatus.className = 'status ok';
       showToast('Cadastro criado com sucesso!', 'ok');
 
-      // Se houver QR Code, redireciona
       const qrUrl = data.qrCodeUrl || data.qr_code || data.qrcode;
       
       if (qrUrl) {
@@ -463,14 +501,11 @@ document.getElementById('calForm').addEventListener('submit', async (e) => {
           window.location.href = `/qrcode.html?${params.toString()}`;
         }, 1500);
       } else {
-        // Se não houver QR Code, apenas mostra sucesso
         formStatus.textContent = 'Cadastro criado com sucesso! Você receberá instruções por email.';
       }
     }
   } catch (err) {
-    console.error('❌ Erro ao enviar:', err);
     
-    // Tratar erros de rede
     let errorMessage = 'Erro de conexão';
     let errorDetails = 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet.';
     

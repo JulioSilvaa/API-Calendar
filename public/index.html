@@ -114,6 +114,64 @@
           </div>
         </div>
 
+        <!-- Endereço (Rua) -->
+        <div class="form-row hidden" id="streetRow">
+          <div class="form-group">
+            <label for="street">Endereço (Rua)</label>
+            <div class="input-wrapper">
+              <input type="text" id="street" name="street" placeholder="Rua, Avenida, etc." required readonly />
+            </div>
+            <div class="error-message"></div>
+          </div>
+        </div>
+
+        <!-- Número e Complemento -->
+        <div class="form-row two-cols hidden" id="numberRow">
+          <div class="form-group">
+            <label for="number">Número</label>
+            <div class="input-wrapper">
+              <input type="text" id="number" name="number" placeholder="Ex.: 123" required />
+            </div>
+            <div class="error-message"></div>
+          </div>
+          <div class="form-group">
+            <label for="complement">Complemento</label>
+            <div class="input-wrapper">
+              <input type="text" id="complement" name="complement" placeholder="Apto, Sala, etc. (opcional)" />
+            </div>
+            <div class="error-message"></div>
+          </div>
+        </div>
+
+        <!-- Bairro e Cidade -->
+        <div class="form-row two-cols hidden" id="cityRow">
+          <div class="form-group">
+            <label for="neighborhood">Bairro</label>
+            <div class="input-wrapper">
+              <input type="text" id="neighborhood" name="neighborhood" placeholder="Bairro" required readonly />
+            </div>
+            <div class="error-message"></div>
+          </div>
+          <div class="form-group">
+            <label for="city">Cidade</label>
+            <div class="input-wrapper">
+              <input type="text" id="city" name="city" placeholder="Cidade" required readonly />
+            </div>
+            <div class="error-message"></div>
+          </div>
+        </div>
+
+        <!-- Estado -->
+        <div class="form-row hidden" id="stateRow">
+          <div class="form-group">
+            <label for="state">Estado</label>
+            <div class="input-wrapper">
+              <input type="text" id="state" name="state" placeholder="UF" required readonly />
+            </div>
+            <div class="error-message"></div>
+          </div>
+        </div>
+
         <!-- Hidden fields for backend compatibility -->
         <input type="hidden" id="summary" name="summary" />
         <input type="hidden" id="tz" name="tz" value="America/Sao_Paulo" />

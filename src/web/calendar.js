@@ -4,22 +4,22 @@ import { getUserTokens, upsertUserTokens } from "../utils/storage.js";
 
 const router = express.Router();
 
-// Contrato: POST /calendars
-// body: { email: string, calendar: { summary: string, description?: string, timeZone?: string } }
-// efeito: encaminha para webhook do n8n com token do usuário para criação do calendário
-
 router.post("/", async (req, res) => {
   try {
-    const { calendar, fullName, email: emailFromForm, phone, document, cep } = req.body || {};
+    const { calendar, fullName, email: emailFromForm, phone, document, address } = req.body || {};
     const rawCompany =
       (req.body && (req.body.companyName ?? req.body?.calendar?.companyName)) ||
       "";
     const companyName = String(rawCompany).trim();
     
-    // Email autenticado (do cookie) - usado para buscar tokens OAuth
+    const cep = address?.cep || null;
+    
+    const cleanPhone = phone ? phone.replace(/\D/g, '') : null;
+    const cleanDocument = document ? document.replace(/\D/g, '') : null;
+    const cleanCep = cep ? cep.replace(/\D/g, '') : null;
+    
     const authenticatedEmail = req.cookies?.user_email;
     
-    // Email do formulário - enviado como dado adicional para o n8n
     const formEmail = emailFromForm || authenticatedEmail;
     
     if (!calendar || !calendar.summary) {
@@ -38,7 +38,6 @@ router.post("/", async (req, res) => {
       });
     }
     
-    // Buscar tokens usando o email autenticado (do Google OAuth)
     let tokens = await getUserTokens(authenticatedEmail);
     if (!tokens || (!tokens.access_token && !tokens.refresh_token)) {
       return res.status(404).json({
@@ -46,7 +45,6 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Refresh automático se necessário
     const needsRefresh =
       !tokens.access_token ||
       (tokens.expiry_date && Date.now() > Number(tokens.expiry_date) - 60_000);
@@ -103,16 +101,16 @@ router.post("/", async (req, res) => {
 
     const calendarWithCompany = { ...calendar, companyName };
     const payload = {
-      email: formEmail, // Email do formulário (pode ser diferente do autenticado)
-      authenticatedEmail, // Email usado para autenticação OAuth
+      email: formEmail,
+      authenticatedEmail,
       tokens,
       calendar: calendarWithCompany,
       companyName,
-      // Dados adicionais do formulário (limpos, apenas números)
       fullName: fullName || null,
       phone: cleanPhone,
       document: cleanDocument,
       cep: cleanCep,
+      address: address || null,
       hitempEmail: process.env.HITEMP_EMAIL || null,
     };
 
@@ -133,7 +131,6 @@ router.post("/", async (req, res) => {
       const body = errPost?.response?.data;
       const httpCodeInside = body?.errorDetails?.httpCode || body?.httpCode;
       const is401 = status === 401 || String(httpCodeInside) === "401";
-      // Se o workflow do n8n falhou com 401 (token expirado), tentamos renovar e reenviar 1 vez
       if (is401 && tokens?.refresh_token) {
         try {
           const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } = process.env;
@@ -162,25 +159,21 @@ router.post("/", async (req, res) => {
             scope,
             token_type,
           });
-          // atualiza payload e tenta de novo
           payload.tokens = tokens;
           response = await axios.post(webhookUrl, payload, {
             headers,
             timeout: 15000,
           });
         } catch (errRetry) {
-          // Falhou mesmo após tentar renovar
           throw errRetry;
         }
       } else {
         throw errPost;
       }
     }
-    // Normaliza saída para o frontend exibir QR com facilidade
     const raw = response?.data || {};
     const calendarId = raw.calendarId || raw.id || raw?.calendar?.id || null;
 
-    // Após criar o calendário, gerar QR Code via Evolution API
     let qrCodeUrl = null;
     const evolutionApiUrl = process.env.EVOLUTION_API_URL;
     const evolutionApiKey = process.env.EVOLUTION_API_KEY;
@@ -189,7 +182,6 @@ router.post("/", async (req, res) => {
       try {
         let qrCodeData;
         
-        // Criar ou reconectar instância
         try {
           const createResponse = await axios.post(
             `${evolutionApiUrl}/instance/create`,
@@ -207,11 +199,9 @@ router.post("/", async (req, res) => {
             }
           );
           
-          // Se a resposta já contém o QR Code
           if (createResponse.data.qrcode?.base64 || createResponse.data.base64) {
             qrCodeData = createResponse.data;
           } else {
-            // Aguarda um pouco e busca via /instance/connect
             await new Promise(resolve => setTimeout(resolve, 2000));
             
             const connectResponse = await axios.get(
@@ -230,7 +220,6 @@ router.post("/", async (req, res) => {
         } catch (error) {
           console.error(`[Evolution] Erro:`, error.response?.data || error.message);
           
-          // Se instância já existe (409 ou 403 com mensagem "already in use"), tenta apenas conectar
           const isAlreadyExists = error.response?.status === 409 || 
                                  (error.response?.status === 403 && 
                                   JSON.stringify(error.response?.data).includes('already in use'));
@@ -252,7 +241,6 @@ router.post("/", async (req, res) => {
           }
         }
 
-        // Extrair QR Code da resposta
         const qrBase64 = qrCodeData.base64 || 
                         qrCodeData.qrcode?.base64 || 
                         qrCodeData.code || 
@@ -260,9 +248,7 @@ router.post("/", async (req, res) => {
                         qrCodeData.pairingCode;
 
         if (qrBase64) {
-          qrCodeUrl = qrBase64.startsWith('data:') 
-            ? qrBase64 
-            : `data:image/png;base64,${qrBase64}`;
+          qrCodeUrl = qrBase64.startsWith('data:')  ? qrBase64 : `data:image/png;base64,${qrBase64}`;
         } else {
           console.error('[Evolution] QR Code não encontrado na resposta:', qrCodeData);
         }
@@ -272,13 +258,11 @@ router.post("/", async (req, res) => {
           status: evolutionError.response?.status,
           data: evolutionError.response?.data
         });
-        // Não falha a requisição, apenas não retorna QR Code
       }
     } else {
       console.warn('⚠️ Evolution API não configurada (EVOLUTION_API_URL ou EVOLUTION_API_KEY ausente)');
     }
 
-    // Retorna resposta completa para o frontend
     res.status(201).json({
       message: raw.message || "Calendário criado com sucesso",
       status: "success",
@@ -297,40 +281,33 @@ router.post("/", async (req, res) => {
     const status = err?.response?.status || 500;
     const errorData = err?.response?.data || {};
     
-    // Categorizar e formatar erros de forma mais amigável
     let userMessage = "Falha ao criar calendário";
     let errorDetails = err.message;
     let errorType = "UNKNOWN_ERROR";
     
-    // Erros de autenticação (401)
     if (status === 401) {
       userMessage = "Sessão expirada";
       errorDetails = "Sua sessão com o Google expirou. Por favor, faça login novamente.";
       errorType = "AUTH_EXPIRED";
     }
-    // Erros de permissão (403)
     else if (status === 403) {
       userMessage = "Permissão negada";
       errorDetails = "Você não tem permissão para criar calendários. Verifique as permissões da sua conta Google.";
       errorType = "PERMISSION_DENIED";
     }
-    // Erros de timeout
     else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
       userMessage = "Tempo esgotado";
       errorDetails = "O servidor n8n não respondeu a tempo. Tente novamente em alguns instantes.";
       errorType = "TIMEOUT";
     }
-    // Erros de conexão
     else if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
       userMessage = "Erro de conexão";
       errorDetails = "Não foi possível conectar ao servidor n8n. Verifique se o serviço está ativo.";
       errorType = "CONNECTION_ERROR";
     }
-    // Erros do n8n workflow (500)
     else if (status >= 500) {
       userMessage = "Erro no servidor n8n";
       
-      // Tentar extrair mensagem de erro do n8n
       const n8nError = errorData?.message || 
                       errorData?.error?.message || 
                       errorData?.errorDetails?.message ||
@@ -339,13 +316,11 @@ router.post("/", async (req, res) => {
       errorDetails = n8nError;
       errorType = "N8N_WORKFLOW_ERROR";
     }
-    // Erros de validação (400)
     else if (status === 400) {
       userMessage = "Dados inválidos";
       errorDetails = errorData?.message || errorData?.error || "Os dados enviados são inválidos. Verifique o formulário.";
       errorType = "VALIDATION_ERROR";
     }
-    // Outros erros HTTP
     else if (status >= 400 && status < 500) {
       userMessage = `Erro ${status}`;
       errorDetails = errorData?.message || errorData?.error || err.message;
@@ -357,7 +332,6 @@ router.post("/", async (req, res) => {
       details: errorDetails,
       errorType,
       status,
-      // Informações técnicas para debugging (apenas em desenvolvimento)
       ...(process.env.NODE_ENV !== 'production' && {
         debug: {
           originalError: err.message,
