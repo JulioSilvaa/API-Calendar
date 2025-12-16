@@ -10,7 +10,8 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000, // Increased from 2000ms to 10000ms to handle Docker DNS resolution delays
+  query_timeout: 5000, // 5 second timeout for individual queries
 });
 
 // Encryption key from environment
@@ -22,14 +23,46 @@ if (!ENCRYPTION_KEY) {
 }
 
 // Test database connection
-pool.on('connect', () => {
+pool.on('connect', (client) => {
   console.log('✓ Connected to PostgreSQL database');
 });
 
 pool.on('error', (err) => {
-  console.error('Unexpected error on idle PostgreSQL client', err);
-  process.exit(-1);
+  console.error('❌ Unexpected error on idle PostgreSQL client:', {
+    message: err.message,
+    code: err.code,
+    host: process.env.DB_HOST
+  });
+  // Don't exit immediately, allow retry logic to handle it
 });
+
+/**
+ * Retry helper function with exponential backoff
+ * @param {Function} fn - Async function to retry
+ * @param {number} maxRetries - Maximum number of retries
+ * @param {number} baseDelay - Base delay in milliseconds
+ */
+async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      const isLastAttempt = attempt === maxRetries;
+      const isRetryableError = error.code === 'ECONNREFUSED' || 
+                               error.code === 'ETIMEDOUT' || 
+                               error.code === 'EAI_AGAIN' ||
+                               error.message?.includes('Connection terminated');
+      
+      if (isLastAttempt || !isRetryableError) {
+        throw error;
+      }
+      
+      const delay = baseDelay * Math.pow(2, attempt - 1);
+      console.log(`⚠️ Database operation failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
 
 /**
  * Save or update user tokens in the database with encryption
@@ -55,19 +88,26 @@ export async function saveTokens(email, tokens) {
   `;
 
   try {
-    const result = await pool.query(query, [
-      email,
-      tokens.access_token,
-      ENCRYPTION_KEY,
-      tokens.refresh_token || '',
-      tokens.scope || '',
-      tokens.token_type || 'Bearer',
-      tokens.expiry_date ? new Date(tokens.expiry_date) : null
-    ]);
+    const result = await retryWithBackoff(async () => {
+      return await pool.query(query, [
+        email,
+        tokens.access_token,
+        ENCRYPTION_KEY,
+        tokens.refresh_token || '',
+        tokens.scope || '',
+        tokens.token_type || 'Bearer',
+        tokens.expiry_date ? new Date(tokens.expiry_date) : null
+      ]);
+    });
     
+    console.log(`✓ Tokens saved successfully for ${email}`);
     return result.rows[0];
   } catch (error) {
-    console.error('Error saving tokens:', error.message);
+    console.error(`❌ Error saving tokens for ${email}:`, {
+      message: error.message,
+      code: error.code,
+      host: process.env.DB_HOST
+    });
     throw error;
   }
 }

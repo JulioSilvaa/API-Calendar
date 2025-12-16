@@ -101,16 +101,29 @@ router.get("/callback", async (req, res) => {
     const base = process.env.APP_BASE_URL || "http://localhost:3000";
     res.redirect(base);
   } catch (err) {
-    console.error(err);
+    console.error('❌ OAuth callback error:', {
+      message: err.message,
+      code: err.code,
+      stack: err.stack?.split('\n').slice(0, 3)
+    });
+    
+    let errorMessage = 'Falha ao concluir o login com Google';
+    let errorDetails = err.message || 'Erro desconhecido';
+    
+    // Check if it's a database connection error
+    if (err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT' || err.code === 'EAI_AGAIN' || 
+        err.message?.includes('Connection terminated')) {
+      errorMessage = 'Erro de conexão com banco de dados';
+      errorDetails = 'Não foi possível salvar suas credenciais. Por favor, tente novamente em alguns instantes.';
+    }
+    
     res.status(500).set("Content-Type", "text/html; charset=utf-8").end(`
       <!doctype html>
       <html lang="pt-br">
       <head><meta charset="utf-8"><title>Erro no login</title></head>
       <body style="font-family: system-ui; padding: 24px;">
-        <h2>Falha ao concluir o login com Google</h2>
-        <p style="color:#900">${
-          err && err.message ? err.message : "Erro desconhecido"
-        }</p>
+        <h2>${errorMessage}</h2>
+        <p style="color:#900">${errorDetails}</p>
         <p>Verifique no Google Cloud a Redirect URI autorizada e recarregue a página inicial.</p>
         <p><a href="/">Voltar para a página inicial</a></p>
       </body>
