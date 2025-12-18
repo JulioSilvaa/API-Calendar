@@ -116,8 +116,14 @@ documentInput.addEventListener('input', (e) => {
   e.target.value = documentMask(e.target.value);
 });
 
-cepInput.addEventListener('input', (e) => {
+cepInput.addEventListener('input', async (e) => {
   e.target.value = cepMask(e.target.value);
+  
+  // Buscar automaticamente quando CEP estiver completo (8 dígitos)
+  const cleanCEP = e.target.value.replace(/\D/g, '');
+  if (cleanCEP.length === 8) {
+    await fetchAddressByCEP(e.target.value);
+  }
 });
 
 const setFieldState = (fieldId, isValid, errorMessage = '') => {
@@ -199,26 +205,42 @@ documentInput.addEventListener('blur', (e) => {
   }
 });
 
+
 cepInput.addEventListener('blur', async (e) => {
   const value = e.target.value;
   if (value) {
     const isValid = validateCEP(value);
     if (isValid) {
-      // Buscar endereço na API ViaCEP
-      await fetchAddressByCEP(value);
+      // Buscar endereço na API ViaCEP (caso ainda não tenha sido buscado)
+      const cleanCEP = value.replace(/\D/g, '');
+      if (cleanCEP.length === 8 && !document.getElementById('street').value) {
+        await fetchAddressByCEP(value);
+      }
     } else {
       setFieldState('cep', false, 'CEP inválido (8 dígitos)');
     }
   }
 });
 
+
 const fetchAddressByCEP = async (cep) => {
   const cleanCEP = cep.replace(/\D/g, '');
   
-  const cepFormGroup = document.getElementById('cep').closest('.form-group');
+  const cepInput = document.getElementById('cep');
+  const cepFormGroup = cepInput.closest('.form-group');
   const cepErrorDiv = cepFormGroup.querySelector('.error-message');
-  cepErrorDiv.textContent = 'Buscando endereço...';
-  cepErrorDiv.style.color = '#666';
+  const inputWrapper = cepInput.closest('.input-wrapper');
+  
+  // Adicionar estado de loading
+  cepInput.disabled = true;
+  cepFormGroup.classList.add('loading');
+  cepErrorDiv.textContent = '🔍 Buscando endereço...';
+  cepErrorDiv.style.color = '#2563eb';
+  cepErrorDiv.style.fontWeight = '500';
+  
+  // Adicionar classe de loading ao input wrapper para animação
+  inputWrapper.style.position = 'relative';
+  inputWrapper.style.opacity = '0.7';
   
   try {
     const response = await fetch(`https://viacep.com.br/ws/${cleanCEP}/json/`);
@@ -237,8 +259,15 @@ const fetchAddressByCEP = async (cep) => {
     document.getElementById('state').value = data.uf || '';
     
     setFieldState('cep', true);
-    cepErrorDiv.textContent = '';
-    cepErrorDiv.style.color = '';
+    cepErrorDiv.textContent = '✓ Endereço encontrado';
+    cepErrorDiv.style.color = '#16a34a';
+    
+    // Limpar mensagem de sucesso após 2 segundos
+    setTimeout(() => {
+      cepErrorDiv.textContent = '';
+      cepErrorDiv.style.color = '';
+      cepErrorDiv.style.fontWeight = '';
+    }, 2000);
     
     showAddressFields();
     
@@ -249,6 +278,11 @@ const fetchAddressByCEP = async (cep) => {
     setFieldState('cep', false, 'Erro ao buscar CEP. Tente novamente.');
     clearAddressFields();
     hideAddressFields();
+  } finally {
+    // Remover estado de loading
+    cepInput.disabled = false;
+    cepFormGroup.classList.remove('loading');
+    inputWrapper.style.opacity = '1';
   }
 };
 
