@@ -34,6 +34,15 @@ app.get("/", (req, res) => {
   res.sendFile("index.html", { root: "public" });
 });
 
+// Rotas para páginas legais
+app.get("/privacy", (req, res) => {
+  res.sendFile("privacy.html", { root: "public" });
+});
+
+app.get("/terms", (req, res) => {
+  res.sendFile("terms.html", { root: "public" });
+});
+
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
