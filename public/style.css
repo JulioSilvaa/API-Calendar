@@ -602,6 +602,73 @@ button:disabled {
   }
 }
 
+/* Legal Footer */
+.legal-footer {
+  margin-top: 48px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.legal-notice {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.7;
+  margin-bottom: 20px;
+  font-weight: 400;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.legal-link {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+  position: relative;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid transparent;
+  padding-bottom: 1px;
+}
+
+.legal-link:hover {
+  color: var(--primary-hover);
+  border-bottom-color: var(--primary-hover);
+}
+
+.legal-link:active {
+  transform: translateY(1px);
+}
+
+.legal-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.footer-link {
+  color: var(--text-light);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.footer-link:hover {
+  color: var(--primary);
+  background: rgba(37, 99, 235, 0.05);
+}
+
+.separator {
+  color: var(--border);
+  font-size: 12px;
+  user-select: none;
+}
+
 /* Hidden elements */
 .hidden {
   display: none !important;
