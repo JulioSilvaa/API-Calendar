@@ -276,3 +276,5 @@ MIT - Sinta-se livre para usar este projeto!
 
 **Desenvolvido com ❤️ usando Node.js, n8n e Evolution API**
 
+
+<- Update subscriptionService.ts to support flexible plan Teste de deploy automático - 2025-12-19 12:47:47 -->
