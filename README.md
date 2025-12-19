@@ -1,3 +1,11 @@
+# 📅 API Calendar - Sistema de Gestão de Calendários
+
+![Status](https://img.shields.io/badge/status-active-success)
+![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)
+![Docker](https://img.shields.io/badge/docker-ready-blue)
+
+## 🚀 Tecnologias
+
 - **Node.js** + **Express** - API REST
 - **PostgreSQL** - Banco de dados com criptografia
 - **Google OAuth 2.0** - Autenticação segura
@@ -275,6 +283,3 @@ MIT - Sinta-se livre para usar este projeto!
 ---
 
 **Desenvolvido com ❤️ usando Node.js, n8n e Evolution API**
-
-
-<- Update subscriptionService.ts to support flexible plan Teste de deploy automático - 2025-12-19 12:47:47 -->
