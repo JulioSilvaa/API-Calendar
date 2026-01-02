@@ -12,6 +12,7 @@ export {
   upsertUserTokens,
   loadTokens,
   deleteUserTokens,
+  findUserByGoogleEmail,
   closePool
 } from './storage-postgres.js';
 

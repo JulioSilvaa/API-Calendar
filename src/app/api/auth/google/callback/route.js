@@ -1,5 +1,5 @@
 import { resolveRedirectUri, getOAuthClient } from "../../../../../utils/auth-helpers";
-import { upsertUserTokens } from "../../../../../utils/storage.js"; // Standard import
+import { upsertUserTokens, findUserByGoogleEmail } from "../../../../../utils/storage.js";
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -29,26 +29,27 @@ export async function GET(request) {
 
     // Check for existing session
     const cookieStore = await cookies();
-    const existingUserEmail = cookieStore.get("user_email")?.value;
+    let existingUserEmail = cookieStore.get("user_email")?.value;
     
     // Logic:
-    // If user is already logged in (existingUserEmail), we attach the tokens to THAT user.
-    // The 'email' key in DB remains the Platform Email (existingUserEmail).
-    // The 'google_email' column stores the Google Email (email from profile).
-    // We do NOT update the user_email cookie, preserving the session.
-    
-    // If user is NOT logged in, we assume this is a fresh Login/Register via Google.
-    // The 'email' key becomes the Google Email.
-    // The 'google_email' is also the Google Email.
-    // We SET the user_email cookie.
+    // If NOT logged in (no existingUserEmail), check if this Google Email is already linked to a Platform User.
+    if (!existingUserEmail) {
+        const linkedUser = await findUserByGoogleEmail(email);
+        if (linkedUser) {
+            console.log(`✓ Found existing account ${linkedUser.email} linked to Google email ${email}`);
+            existingUserEmail = linkedUser.email; // "Log in" as the linked user
+        }
+    }
 
     const targetEmail = existingUserEmail || email;
     const googleEmail = email; // The email from Google Profile
 
     await upsertUserTokens(targetEmail, tokens, picture, googleEmail);
 
-    // Cookie logic - Only set if NO existing session
-    if (!existingUserEmail) {
+    // Cookie logic - Set if we are logging in (either fresh or via link)
+    // We update the cookie if it wasn't set originally
+    const currentCookie = cookieStore.get("user_email")?.value;
+    if (!currentCookie) {
       const headers = request.headers;
       const isHttps =
         headers.get("x-forwarded-proto")?.includes("https") ||
@@ -58,7 +59,7 @@ export async function GET(request) {
         httpOnly: true,
         sameSite: "lax",
         secure: Boolean(isHttps),
-        maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
+        maxAge: 60 * 60 * 24 * 7, // 7 days
         path: "/",
       });
     }

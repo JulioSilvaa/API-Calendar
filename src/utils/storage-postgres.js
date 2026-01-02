@@ -192,6 +192,25 @@ export async function loadTokens() {
 }
 
 /**
+ * Find a user by their connected Connect Google Email
+ * @param {string} googleEmail - The Google email to search for
+ * @returns {Promise<object|null>} - The user record (id, email) or null
+ */
+export async function findUserByGoogleEmail(googleEmail) {
+  const query = 'SELECT email FROM user_tokens WHERE google_email = $1';
+  try {
+    const result = await pool.query(query, [googleEmail]);
+    if (result.rows.length > 0) {
+      return result.rows[0];
+    }
+    return null;
+  } catch (error) {
+    console.error('Error finding user by Google email:', error.message);
+    throw error;
+  }
+}
+
+/**
  * Delete user tokens
  * @param {string} email - User email
  */
