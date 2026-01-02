@@ -94,6 +94,18 @@ export default function LoginPage() {
                         onChange={e => setFormData({...formData, password: e.target.value})}
                     />
                 </div>
+                {!isRegistering && (
+                    <div style={{ textAlign: 'right', marginTop: '4px' }}>
+                        <a 
+                            href="/forgot-password" 
+                            style={{ fontSize: '12px', color: 'var(--text-light)', textDecoration: 'none' }}
+                            onMouseOver={(e) => e.target.style.textDecoration = 'underline'}
+                            onMouseOut={(e) => e.target.style.textDecoration = 'none'}
+                        >
+                            Esqueceu a senha?
+                        </a>
+                    </div>
+                )}
             </div>
 
             {isRegistering && (
