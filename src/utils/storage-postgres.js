@@ -1,18 +1,4 @@
-import pg from 'pg';
-const { Pool } = pg;
-
-// PostgreSQL connection pool
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || 'api_calendar',
-  user: process.env.DB_USER || 'api_calendar_user',
-  password: process.env.DB_PASSWORD,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000, // Increased from 2000ms to 10000ms to handle Docker DNS resolution delays
-  query_timeout: 5000, // 5 second timeout for individual queries
-});
+import pool from './db.js';
 
 // Encryption key from environment
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
@@ -22,19 +8,8 @@ if (!ENCRYPTION_KEY) {
   process.exit(1);
 }
 
-// Test database connection
-pool.on('connect', (client) => {
-  console.log('✓ Connected to PostgreSQL database');
-});
-
-pool.on('error', (err) => {
-  console.error('❌ Unexpected error on idle PostgreSQL client:', {
-    message: err.message,
-    code: err.code,
-    host: process.env.DB_HOST
-  });
-  // Don't exit immediately, allow retry logic to handle it
-});
+// Test database connection (Optional, since pool is lazy)
+// pool.query('SELECT NOW()').then(() => console.log('✓ Storage module connected to DB')).catch(err => console.error('Storage DB error', err));
 
 /**
  * Retry helper function with exponential backoff
@@ -226,17 +201,7 @@ export async function deleteUserTokens(email) {
  * Close database connection pool
  */
 export async function closePool() {
-  await pool.end();
-  console.log('✓ Database connection pool closed');
+  // Using shared pool, responsibility of closing lies elsewhere or app shutdown
+  // But we can expose it if needed
+  // await pool.end();
 }
-
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  await closePool();
-  process.exit(0);
-});
-
-process.on('SIGINT', async () => {
-  await closePool();
-  process.exit(0);
-});

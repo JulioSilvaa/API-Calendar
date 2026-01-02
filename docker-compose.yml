@@ -22,9 +22,18 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    profiles:
-      - dev
-      - prod
+
+  # Database Viewer (Adminer)
+  adminer:
+    image: adminer
+    container_name: api-calendar-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    networks:
+      - api-calendar-network
+    depends_on:
+      - postgres
 
   api-calendar:
     build:
@@ -58,41 +67,6 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
-    profiles:
-      - dev
-
-  # Serviço para produção
-  api-calendar-prod:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: production
-    container_name: api-calendar-prod
-    restart: always
-    ports:
-      - "3000:3000"
-    env_file:
-      - .env
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - DB_HOST=postgres
-    volumes:
-      # Apenas volume de dados em produção
-      - ./data:/app/data
-    networks:
-      - api-calendar-network
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-    profiles:
-      - prod
 
 networks:
   api-calendar-network:

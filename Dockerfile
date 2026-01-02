@@ -13,16 +13,11 @@ WORKDIR /app
 
 # Copiar arquivos de dependências
 COPY package*.json ./
-COPY yarn.lock* ./
 
 FROM base AS development
 
-# Instalar TODAS as dependências (incluindo devDependencies)
-RUN if [ -f yarn.lock ]; then \
-        yarn install --frozen-lockfile; \
-    else \
-        npm ci; \
-    fi
+# Instalar dependências
+RUN npm ci
 
 # Copiar código fonte
 COPY . .
@@ -44,7 +39,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # Usar tini para gerenciar processos
 ENTRYPOINT ["/sbin/tini", "--"]
 
-# Comando padrão (pode ser sobrescrito)
+# Comando padrão
 CMD ["npm", "run", "dev"]
 
 FROM base AS production
@@ -52,15 +47,14 @@ FROM base AS production
 # Definir ambiente de produção
 ENV NODE_ENV=production
 
-# Instalar APENAS dependências de produção
-RUN if [ -f yarn.lock ]; then \
-        yarn install --frozen-lockfile --production; \
-    else \
-        npm ci --only=production; \
-    fi
+# Instalar dependências
+RUN npm ci
 
 # Copiar código fonte
 COPY . .
+
+# Build do Next.js
+RUN npm run build
 
 # Criar usuário não-root
 RUN addgroup -g 1001 -S nodejs && \

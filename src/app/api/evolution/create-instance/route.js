@@ -1,36 +1,25 @@
-import express from "express";
+import { NextResponse } from "next/server";
 import axios from "axios";
 
-const router = express.Router();
-
-// POST /evolution/create-instance
-// Cria instância no Evolution API e retorna QR Code
-router.post("/create-instance", async (req, res) => {
+export async function POST(request) {
   try {
-    const { companyName } = req.body || {};
+    const body = await request.json();
+    const { companyName } = body || {};
     
     if (!companyName) {
-      return res.status(400).json({ 
-        error: "companyName é obrigatório" 
-      });
+      return NextResponse.json({ error: "companyName é obrigatório" }, { status: 400 });
     }
 
     const evolutionApiUrl = process.env.EVOLUTION_API_URL;
     const evolutionApiKey = process.env.EVOLUTION_API_KEY;
     
     if (!evolutionApiUrl || !evolutionApiKey) {
-      return res.status(500).json({ 
-        error: "Evolution API não configurada. Configure EVOLUTION_API_URL e EVOLUTION_API_KEY no .env" 
-      });
+      return NextResponse.json({ error: "Evolution API não configurada. Configure EVOLUTION_API_URL e EVOLUTION_API_KEY no .env" }, { status: 500 });
     }
 
-    // Normalizar URL: remover /manager do final se existir
-    const baseUrl = evolutionApiUrl.replace(/\/manager\/?$/, '');
     const instanceName = companyName;
-
     let qrCodeData;
     
-    // Criar ou reconectar instância
     try {
       const createResponse = await axios.post(
         `${evolutionApiUrl}/instance/create`,
@@ -48,11 +37,9 @@ router.post("/create-instance", async (req, res) => {
         }
       );
       
-      // Se a resposta já contém o QR Code
       if (createResponse.data.qrcode?.base64 || createResponse.data.base64) {
         qrCodeData = createResponse.data;
       } else {
-        // Aguarda um pouco e busca via /instance/connect
         await new Promise(resolve => setTimeout(resolve, 2000));
         
         const connectResponse = await axios.get(
@@ -70,7 +57,11 @@ router.post("/create-instance", async (req, res) => {
       
     } catch (error) {
       // Se instância já existe (409), tenta apenas conectar
-      if (error.response?.status === 409) {
+      const isAlreadyExists = error.response?.status === 409 || 
+                             (error.response?.status === 403 && 
+                              JSON.stringify(error.response?.data).includes('already in use'));
+                              
+      if (isAlreadyExists) {
         const connectResponse = await axios.get(
           `${evolutionApiUrl}/instance/connect/${instanceName}`,
           {
@@ -88,37 +79,34 @@ router.post("/create-instance", async (req, res) => {
       }
     }
 
-    // Extrair QR Code da resposta
     const qrCodeUrl = qrCodeData.base64 || 
                       qrCodeData.qrcode?.base64 || 
                       qrCodeData.code || 
-                      qrCodeData.qr ||
+                      qrCodeData.qr || 
                       qrCodeData.pairingCode;
 
     if (!qrCodeUrl) {
       console.error('[Evolution] QR Code não encontrado na resposta:', qrCodeData);
-      return res.status(500).json({ 
+      return NextResponse.json({ 
         error: "QR Code não foi gerado pela Evolution API",
         data: qrCodeData
-      });
+      }, { status: 500 });
     }
 
-    res.status(201).json({
+    return NextResponse.json({
       message: "Instância criada com sucesso",
       instanceName,
       qrCodeUrl: qrCodeUrl.startsWith('data:') ? qrCodeUrl : `data:image/png;base64,${qrCodeUrl}`,
       status: "connecting",
       evolution: qrCodeData
-    });
+    }, { status: 201 });
 
   } catch (err) {
     console.error("[Evolution] Erro:", err.response?.data || err.message);
     const status = err.response?.status || 500;
-    res.status(status).json({
+    return NextResponse.json({
       error: "Falha ao criar instância no Evolution API",
       details: err.response?.data || err.message
-    });
+    }, { status });
   }
-});
-
-export default router;
+}

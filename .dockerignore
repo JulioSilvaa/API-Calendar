@@ -10,6 +10,7 @@ yarn-error.log*
 .env.*.local
 
 # Arquivos de desenvolvimento
+.next/
 *.log
 *.pid
 *.seed
