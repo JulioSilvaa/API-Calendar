@@ -1,10 +1,6 @@
 import nodemailer from 'nodemailer';
 
-console.log('SMTP Config:', {
-    userExists: !!process.env.SMTP_USER,
-    passExists: !!process.env.SMTP_PASS,
-    user: process.env.SMTP_USER // safe to log email usually, but can mask it partially if preferred
-});
+
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
