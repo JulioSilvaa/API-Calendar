@@ -116,7 +116,6 @@ export default function RegistrationForm({ initialUserEmail }) {
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
-    confirmEmail: "",
     phone: "",
     document: "",
     company: "",
@@ -139,13 +138,13 @@ export default function RegistrationForm({ initialUserEmail }) {
   const [submitStatus, setSubmitStatus] = useState({ type: "", message: "", details: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState({ show: false, message: "", type: "ok" });
+  const [hasTokens, setHasTokens] = useState(false);
+  const [userAvatar, setUserAvatar] = useState(null);
+  const [connectedGoogleEmail, setConnectedGoogleEmail] = useState(null);
 
   useEffect(() => {
-    // Se não veio do server, tenta fazer fetch
-    if (!initialUserEmail) {
-        fetchMe();
-    }
-  }, [initialUserEmail]);
+    fetchMe();
+  }, []);
 
   const fetchMe = async () => {
     try {
@@ -154,9 +153,21 @@ export default function RegistrationForm({ initialUserEmail }) {
       if (data.email) {
         setIsUserLoggedIn(true);
         setUserEmail(data.email);
+        setHasTokens(data.hasTokens);
+        setUserAvatar(data.avatarUrl);
+        setConnectedGoogleEmail(data.googleEmail);
+        
+        // Pre-fill email with logged in user email
+        setFormData(prev => ({ 
+            ...prev, 
+            email: data.email
+        }));
       } else {
         setIsUserLoggedIn(false);
         setUserEmail("");
+        setHasTokens(false);
+        setUserAvatar(null);
+        setConnectedGoogleEmail(null);
       }
     } catch (err) {
       console.error("Failed to fetch user session", err);
@@ -206,10 +217,7 @@ export default function RegistrationForm({ initialUserEmail }) {
       case "email":
         if (!validateEmail(cleanValue)) error = "E-mail inválido";
         break;
-      case "confirmEmail":
-        if (cleanValue !== formData.email || !validateEmail(cleanValue))
-          error = "Os e-mails não coincidem";
-        break;
+
       case "phone":
         if (!validatePhone(cleanValue)) error = "Celular inválido (11 dígitos)";
         break;
@@ -281,7 +289,6 @@ export default function RegistrationForm({ initialUserEmail }) {
     const requiredFields = [
       "fullName",
       "email",
-      "confirmEmail",
       "phone",
       "document",
       "company",
@@ -436,8 +443,130 @@ export default function RegistrationForm({ initialUserEmail }) {
         <div className="form-section">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h2>Dados do Cadastro</h2>
-              <div style={{ fontSize: '14px', color: 'var(--text-light)' }}>
-                  Logado como <strong>{userEmail}</strong> • <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', padding: 0, font: 'inherit' }}>Sair</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {/* STATE 1: Logged in but needs to connect Google */}
+                {isUserLoggedIn && !hasTokens && (
+                    <>
+                        <button 
+                            type="button"
+                            onClick={() => window.location.href = '/api/auth/google/initiate'}
+                            style={{ 
+                                background: 'white', 
+                                border: '1px solid #dadce0', 
+                                borderRadius: '4px',
+                                color: '#3c4043', 
+                                cursor: 'pointer', 
+                                padding: '8px 12px', 
+                                fontSize: '13px',
+                                fontWeight: '500',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                transition: 'background 0.2s'
+                            }}
+                            onMouseOver={(e) => e.currentTarget.style.background = '#f8f9fa'}
+                            onMouseOut={(e) => e.currentTarget.style.background = 'white'}
+                        >
+                            <svg width="18" height="18" viewBox="0 0 24 24">
+                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                            </svg>
+                            Conectar Google Agenda
+                        </button>
+                        <button 
+                            onClick={handleLogout} 
+                            type="button"
+                            style={{ 
+                                background: 'none', 
+                                border: '1px solid #dadce0', 
+                                borderRadius: '4px',
+                                color: '#5f6368', 
+                                cursor: 'pointer', 
+                                padding: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.2s'
+                            }}
+                            title="Sair"
+                            onMouseOver={(e) => { e.currentTarget.style.background = '#f1f3f4'; e.currentTarget.style.borderColor = '#d2e3fc'; }}
+                            onMouseOut={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderColor = '#dadce0'; }}
+                        >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                <polyline points="16 17 21 12 16 7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
+                            </svg>
+                        </button>
+                    </>
+                )}
+
+                {/* STATE 2: Connected Badge */}
+                {isUserLoggedIn && hasTokens && (
+                    <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '12px', 
+                        background: '#f8f9fa', 
+                        padding: '6px 8px 6px 6px', 
+                        borderRadius: '30px', 
+                        border: '1px solid #e8eaed',
+                        boxShadow: '0 1px 2px rgba(60,64,67,0.05)'
+                    }}>
+                        {/* Avatar */}
+                        {userAvatar ? (
+                           <img 
+                              src={userAvatar} 
+                              alt="Profile" 
+                              style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} 
+                           />
+                        ) : (
+                            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#1a73e8', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 'bold' }}>
+                                {formData.fullName ? formData.fullName.charAt(0).toUpperCase() : 'U'}
+                            </div>
+                        )}
+                        
+                        {/* Info */}
+                        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '1.2', alignItems: 'flex-start', paddingRight: '4px' }}>
+                            <span style={{ fontSize: '11px', color: '#1a73e8', fontWeight: '700', letterSpacing: '0.3px', textTransform: 'uppercase' }}>Conectado</span>
+                            <span style={{ fontSize: '12px', color: '#3c4043', fontWeight: '500', maxWidth: '150px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {connectedGoogleEmail || formData.email || 'Conta Google'}
+                            </span>
+                        </div>
+
+                        {/* Divider */}
+                        <div style={{ width: '1px', height: '24px', background: '#dadce0', margin: '0 2px' }}></div>
+
+                        {/* Logout */}
+                        <button 
+                            onClick={handleLogout} 
+                            type="button"
+                            style={{ 
+                                background: 'transparent', 
+                                border: 'none', 
+                                color: '#5f6368', 
+                                cursor: 'pointer', 
+                                padding: '6px',
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center',
+                                borderRadius: '50%',
+                                transition: 'background 0.2s'
+                            }}
+                            title="Desconectar"
+                            onMouseOver={(e) => { e.currentTarget.style.background = '#e8eaed'; e.currentTarget.style.color = '#202124'; }}
+                            onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#5f6368'; }}
+                        >
+                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                <polyline points="16 17 21 12 16 7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
+                            </svg>
+                        </button>
+                    </div>
+                )}
               </div>
           </div>
 
@@ -462,8 +591,8 @@ export default function RegistrationForm({ initialUserEmail }) {
               </div>
             </div>
 
-            {/* E-mail e Confirme o E-mail */}
-            <div className="form-row two-cols">
+            {/* E-mail */}
+            <div className="form-row">
               <div className={getGroupClass("email")}>
                 <label htmlFor="email">E-mail</label>
                 <div className="input-wrapper">
@@ -476,27 +605,81 @@ export default function RegistrationForm({ initialUserEmail }) {
                     value={formData.email}
                     onChange={handleChange}
                     onBlur={handleBlur}
+                    readOnly={isUserLoggedIn}
+                    style={isUserLoggedIn ? { backgroundColor: "#f0f0f0", cursor: "not-allowed", color: "#666" } : {}}
                   />
+                  {isUserLoggedIn && (
+                    <span style={{ 
+                      position: 'absolute', 
+                      right: '12px', 
+                      top: '50%', 
+                      transform: 'translateY(-50%)', 
+                      pointerEvents: 'none',
+                      display: 'flex',
+                      color: '#6c757d',
+                      opacity: 0.7
+                    }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                      </svg>
+                    </span>
+                  )}
                 </div>
                 <div className="error-message">{errors.email}</div>
               </div>
-              <div className={getGroupClass("confirmEmail")}>
-                <label htmlFor="confirmEmail">Confirme o E-mail</label>
-                <div className="input-wrapper">
-                  <input
-                    type="email"
-                    id="confirmEmail"
-                    name="confirmEmail"
-                    placeholder="seu@email.com"
-                    required
-                    value={formData.confirmEmail}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                  />
-                </div>
-                <div className="error-message">{errors.confirmEmail}</div>
-              </div>
             </div>
+
+            {/* Google Login Trigger */}
+            {(!isUserLoggedIn || (formData.email && formData.email !== userEmail)) && (
+                <div className="form-row" style={{ marginTop: '-15px', marginBottom: '20px' }}>
+                     <div className="form-group" style={{ width: '100%' }}>
+                        <div className="info-box" style={{ 
+                            backgroundColor: '#f8f9fa', 
+                            border: '1px solid #e9ecef', 
+                            borderRadius: '8px', 
+                            padding: '15px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '15px'
+                        }}>
+                            <div style={{ flex: 1 }}>
+                                <p style={{ margin: 0, fontSize: '14px', color: '#495057' }}>
+                                    {isUserLoggedIn 
+                                        ? `Deseja usar a conta ${formData.email || '...'}? Conecte-se para permitir o acesso ao calendário.`
+                                        : "Para integrarmos seu calendário, precisamos que faça login com Google."}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => window.location.href = '/api/auth/google/initiate'}
+                                style={{
+                                    backgroundColor: 'white',
+                                    border: '1px solid #ced4da',
+                                    borderRadius: '6px',
+                                    padding: '8px 16px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    cursor: 'pointer',
+                                    fontSize: '13px',
+                                    fontWeight: '500',
+                                    whiteSpace: 'nowrap'
+                                }}
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24">
+                                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                                </svg>
+                                Conectar com Google
+                            </button>
+                        </div>
+                     </div>
+                </div>
+            )}
 
             {/* Celular e CPF/CNPJ */}
             <div className="form-row two-cols">

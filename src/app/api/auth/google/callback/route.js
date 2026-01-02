@@ -24,24 +24,44 @@ export async function GET(request) {
     const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
     const me = await oauth2.userinfo.get();
     const email = me.data.email;
+    const picture = me.data.picture;
     if (!email) throw new Error("Não foi possível obter e-mail do usuário");
 
-    await upsertUserTokens(email, tokens);
-
-    // Cookie logic
-    const headers = request.headers;
-    const isHttps =
-      headers.get("x-forwarded-proto")?.includes("https") ||
-      process.env.APP_BASE_URL?.startsWith("https://");
-
+    // Check for existing session
     const cookieStore = await cookies();
-    cookieStore.set("user_email", email, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: Boolean(isHttps),
-      maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
-      path: "/",
-    });
+    const existingUserEmail = cookieStore.get("user_email")?.value;
+    
+    // Logic:
+    // If user is already logged in (existingUserEmail), we attach the tokens to THAT user.
+    // The 'email' key in DB remains the Platform Email (existingUserEmail).
+    // The 'google_email' column stores the Google Email (email from profile).
+    // We do NOT update the user_email cookie, preserving the session.
+    
+    // If user is NOT logged in, we assume this is a fresh Login/Register via Google.
+    // The 'email' key becomes the Google Email.
+    // The 'google_email' is also the Google Email.
+    // We SET the user_email cookie.
+
+    const targetEmail = existingUserEmail || email;
+    const googleEmail = email; // The email from Google Profile
+
+    await upsertUserTokens(targetEmail, tokens, picture, googleEmail);
+
+    // Cookie logic - Only set if NO existing session
+    if (!existingUserEmail) {
+      const headers = request.headers;
+      const isHttps =
+        headers.get("x-forwarded-proto")?.includes("https") ||
+        process.env.APP_BASE_URL?.startsWith("https://");
+
+      cookieStore.set("user_email", targetEmail, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: Boolean(isHttps),
+        maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
+        path: "/",
+      });
+    }
 
     const base = process.env.APP_BASE_URL || "http://localhost:3000";
     return NextResponse.redirect(base);

@@ -43,14 +43,16 @@ async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
  * Save or update user tokens in the database with encryption
  * @param {string} email - User email
  * @param {object} tokens - Token object containing access_token, refresh_token, etc.
+ * @param {string} [avatarUrl] - User avatar URL
+ * @param {string} [googleEmail] - Connected Google Account Email
  */
-export async function saveTokens(email, tokens) {
+export async function saveTokens(email, tokens, avatarUrl = null, googleEmail = null) {
   const query = `
-    INSERT INTO user_tokens (email, access_token, refresh_token, scope, token_type, expiry_date)
+    INSERT INTO user_tokens (email, access_token, refresh_token, scope, token_type, expiry_date, avatar_url, google_email)
     VALUES ($1, 
       pgp_sym_encrypt($2, $3),
       pgp_sym_encrypt($4, $3),
-      $5, $6, $7)
+      $5, $6, $7, $8, $9)
     ON CONFLICT (email) 
     DO UPDATE SET 
       access_token = pgp_sym_encrypt($2, $3),
@@ -58,6 +60,8 @@ export async function saveTokens(email, tokens) {
       scope = $5,
       token_type = $6,
       expiry_date = $7,
+      avatar_url = COALESCE($8, user_tokens.avatar_url),
+      google_email = COALESCE($9, user_tokens.google_email),
       updated_at = CURRENT_TIMESTAMP
     RETURNING id, email, created_at, updated_at
   `;
@@ -71,7 +75,9 @@ export async function saveTokens(email, tokens) {
         tokens.refresh_token || '',
         tokens.scope || '',
         tokens.token_type || 'Bearer',
-        tokens.expiry_date ? new Date(tokens.expiry_date) : null
+        tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+        avatarUrl,
+        googleEmail
       ]);
     });
     
@@ -100,7 +106,10 @@ export async function getUserTokens(email) {
       pgp_sym_decrypt(refresh_token, $2) as refresh_token,
       scope,
       token_type,
+      token_type,
       expiry_date,
+      avatar_url,
+      google_email,
       created_at,
       updated_at
     FROM user_tokens
@@ -121,6 +130,8 @@ export async function getUserTokens(email) {
       scope: row.scope,
       token_type: row.token_type,
       expiry_date: row.expiry_date ? row.expiry_date.getTime() : null,
+      avatar_url: row.avatar_url,
+      google_email: row.google_email,
       created_at: row.created_at,
       updated_at: row.updated_at
     };
@@ -134,10 +145,12 @@ export async function getUserTokens(email) {
  * Upsert user tokens (compatibility with old API)
  * @param {string} email - User email
  * @param {object} tokenPayload - Token payload
+ * @param {string} [avatarUrl] - User avatar URL
+ * @param {string} [googleEmail] - Connected Google Account Email
  * @returns {object} Updated token object
  */
-export async function upsertUserTokens(email, tokenPayload) {
-  await saveTokens(email, tokenPayload);
+export async function upsertUserTokens(email, tokenPayload, avatarUrl = null, googleEmail = null) {
+  await saveTokens(email, tokenPayload, avatarUrl, googleEmail);
   return getUserTokens(email);
 }
 
