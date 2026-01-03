@@ -10,7 +10,9 @@
     "start": "next start",
     "lint": "next lint",
     "test-db": "node test-db-connection.js",
-    "migrate": "node migrate-to-postgres.js"
+    "migrate": "node scripts/create-users-table.js",
+    "db:setup": "node scripts/create-users-table.js",
+    "db:verify": "node scripts/verify-db-setup.js"
   },
   "keywords": [
     "google",
